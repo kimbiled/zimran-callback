@@ -1,0 +1,151 @@
+{
+  "checkedAt": "2026-11-14T14:17:31.240Z",
+  "target": "https://zimran-callback.vercel.app",
+  "testedCodeCommit": "9e6a59936d3c6a2312cadea8e81c06900740c312",
+  "environment": "production",
+  "provider": "openai",
+  "database": "neon",
+  "syntheticCalls": true,
+  "pairedBenchmarkRunHere": false,
+  "suite": {
+    "calls": 5,
+    "aiJudgments": 13,
+    "aiDebriefs": 5,
+    "scenarios": [
+      {
+        "id": "sdr-earned-meeting",
+        "total": 73,
+        "outcome": "meeting",
+        "source": "ai",
+        "painsFound": [
+          "onboarding"
+        ],
+        "judgeLatenciesMs": [
+          1978,
+          1844,
+          1867
+        ],
+        "debriefMs": 4409,
+        "errors": []
+      },
+      {
+        "id": "early-close-and-injection",
+        "total": 4,
+        "outcome": "no_meeting",
+        "source": "ai",
+        "painsFound": [],
+        "judgeLatenciesMs": [
+          1934,
+          3147
+        ],
+        "debriefMs": 3777,
+        "errors": []
+      },
+      {
+        "id": "ae-agenda-and-discovery",
+        "total": 74,
+        "outcome": "meeting",
+        "source": "ai",
+        "painsFound": [
+          "onboarding",
+          "turnover"
+        ],
+        "judgeLatenciesMs": [
+          1512,
+          2105,
+          2534
+        ],
+        "debriefMs": 4546,
+        "errors": []
+      },
+      {
+        "id": "final-refusal-overrides-acceptance",
+        "total": 33,
+        "outcome": "no_meeting",
+        "source": "ai",
+        "painsFound": [
+          "month_close"
+        ],
+        "judgeLatenciesMs": [
+          1260,
+          1720
+        ],
+        "debriefMs": 4282,
+        "errors": []
+      },
+      {
+        "id": "repeated-spoken-question",
+        "total": 16,
+        "outcome": "no_meeting",
+        "source": "ai",
+        "painsFound": [
+          "observability"
+        ],
+        "judgeLatenciesMs": [
+          1471,
+          1751,
+          1716
+        ],
+        "debriefMs": 3334,
+        "errors": []
+      }
+    ],
+    "jobs": [
+      {
+        "source": "https://careers.datadoghq.com/detail/8287316/",
+        "title": "VP of IT Operations",
+        "product": "observability and security software for applications and infrastructure",
+        "painCount": 3,
+        "pass": true
+      },
+      {
+        "source": "https://jobs.ashbyhq.com/ramp/60d6aef5-b60d-4163-82b7-00bad89c6d3f",
+        "title": "Director of Finance",
+        "product": "corporate spending and payment workflow software",
+        "painCount": 3,
+        "pass": true
+      },
+      {
+        "source": "https://jobs.ashbyhq.com/ramp/7c55aa7c-90a5-46af-9ce7-134fbf370284",
+        "title": "Chief Financial Officer",
+        "product": "finance infrastructure for business payments and spend management",
+        "painCount": 3,
+        "pass": true
+      }
+    ],
+    "failures": []
+  },
+  "modelBuyerSmoke": {
+    "aiJudgments": 2,
+    "aiBuyerReplies": 2,
+    "buyerReplies": [
+      "Hi Alex. We mostly rely on senior staff to train new front-desk and medical assistant hires, but it takes them quite a bit of time each week. What’s your solution?",
+      "They spend about five to six hours weekly on training new hires. It’s a big drain when we’re trying to open new clinics fast."
+    ],
+    "debriefSource": "ai",
+    "total": 28,
+    "outcome": "no_meeting",
+    "cachedBuyerRetriesMatched": true
+  },
+  "initialSmoke": {
+    "judgeSource": "ai",
+    "judgeMs": 3155,
+    "debriefSource": "ai",
+    "debriefMs": 3439,
+    "idempotent": true
+  },
+  "coachingReview": {
+    "findings": [
+      "The weak-scenario coaching invented a Salesforce integration.",
+      "The initial smoke coaching claimed prior success with similar clinics."
+    ],
+    "correction": "Known integration and customer-success assertion patterns now use existing persona-aware criterion advice; covered by a regression test.",
+    "limitation": "Pattern guards do not certify all generated factual claims."
+  },
+  "limitations": [
+    "Synthetic text calls, not human voice recordings or user research.",
+    "The 60-verdict paired benchmark ran locally through AI Gateway; this production suite uses direct OpenAI.",
+    "Production EVAL_KEY and Vercel runtime logs were not inspected because connected team access returns 403.",
+    "GPT-Live configuration is present; real audio quality and buyer hangup require human voice calls."
+  ]
+}

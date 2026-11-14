@@ -78,6 +78,7 @@ Also:
 - topFixes: the three most important fixes for the next call, one action each
 - Use complete ready-to-say lines, without bracketed placeholders such as [Your Name] or [Company].
 - Never invent product capabilities, guaranteed savings or performance percentages. Reuse only facts and quantities present in the profile/transcript; frame an unverified benefit as a question or hypothesis, not a sales claim.
+- A product category does not establish CRM integrations or customer results. Never claim Salesforce integration, automatic syncing or "we've helped similar clinics" unless verified product facts explicitly establish it; ask what the buyer needs instead.
 - painsFound: ids of pains the buyer actually revealed in the conversation
 Be strict: 20 is strong-professional level. An empty call gets low scores.`;
 

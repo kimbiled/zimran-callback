@@ -10,6 +10,23 @@ import { buildDebrief, CRITERIA_ORDER } from "@/lib/ai/debrief";
 afterEach(() => { vi.unstubAllEnvs(); vi.restoreAllMocks(); vi.clearAllMocks(); });
 const input = { persona: getPersona("jessica-hr")!, turns: [{ role: "rep" as const, text: "How do you onboard new staff today?", start: 0, end: 4 }], prevScore: 0, alreadyFound: [] };
 describe("production model source", () => {
+  it("replaces invented integrations and customer-success claims without changing grounded scores", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-no-network"); vi.stubEnv("AI_DISABLED", "0"); vi.stubEnv("AI_PROVIDER", "openai");
+    const rep = input.turns[0];
+    const claims = ["Our tool actually integrates with Salesforce to make logging calls automatic.", "We've helped similar clinics reduce training time.", "We have helped similar teams save hours.", "It syncs with your CRM automatically.", "Our platform connects to Salesforce."];
+    vi.mocked(generateText).mockResolvedValue({ output: {
+      summary: "We've helped similar clinics improve onboarding.", outcome: "no_meeting", painsFound: [],
+      criteria: CRITERIA_ORDER.map((id, i) => ({ id, score: 10, quote: rep.text, at: 0, better: claims[i] })),
+      topFixes: claims.slice(0, 3),
+    } } as unknown as Awaited<ReturnType<typeof generateText>>);
+    const result = await buildDebrief({ callId: "coaching", persona: input.persona, turns: input.turns, timeline: [], painsHint: [] });
+    const advice = [result.summary, ...result.criteria.map(c => c.better), ...result.topFixes].join(" ");
+    expect(advice).not.toMatch(/integrates|syncs|connects|(?:we've|we have) helped/i);
+    expect(result.criteria.every(c => c.score === 10 && c.quote === rep.text)).toBe(true);
+    expect(result.total).toBe(50);
+    expect(result.criteria[0].better).toContain("Jessica");
+    expect(result.topFixes).toHaveLength(3);
+  });
   it("recovers a buyer-confirmed pain in the debrief without accepting unrelated model pain IDs", async () => {
     vi.stubEnv("OPENAI_API_KEY", "test-no-network"); vi.stubEnv("AI_DISABLED", "0"); vi.stubEnv("AI_PROVIDER", "openai");
     const persona = getPersona("linda-cfo")!;

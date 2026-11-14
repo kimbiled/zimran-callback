@@ -42,7 +42,15 @@ export function heuristicOutcome(turns: Turn[], _finalScore: number): Debrief["o
   return accepted ? "meeting" : "no_meeting";
 }
 
-export function groundCriteria(list: Criterion[], turns: Turn[]): Criterion[] {
+function safeCoaching(text: string, fallback: string): string {
+  const line = text.replace(/[’‘]/g, "'");
+  // shortcut: catches known invented integration/social-proof claims; broader factual accuracy still needs semantic review.
+  const inventedClaim = /\bwe(?:'ve| have)?\s+(?:(?:already|successfully)\s+)?(?:helped|saved|reduced|increased|improved)\b/i.test(line)
+    || /\b(?:our (?:tool|product|platform|solution|software)|it|we)\b[^.!?]{0,80}\b(?:integrates?|syncs?|connects?)\s+(?:with|to)\b/i.test(line);
+  return inventedClaim ? fallback : text;
+}
+
+export function groundCriteria(list: Criterion[], turns: Turn[], persona?: Persona): Criterion[] {
   const rep = turns.filter((t) => t.role === "rep");
   return CRITERIA_ORDER.map((id) => {
     const c = list.find((x) => x.id === id);
@@ -54,6 +62,7 @@ export function groundCriteria(list: Criterion[], turns: Turn[]): Criterion[] {
       score: match ? Math.round(clamp(base.score, 0, 20)) : 0,
       quote: match ? base.quote : "",
       at: match ? Math.round(match.start) : -1,
+      better: safeCoaching(base.better, criterionAdvice(id, persona)),
     };
   });
 }
@@ -78,7 +87,7 @@ export async function buildDebrief(args: {
       outcome: "no_meeting",
       summary: "The call ended before you said anything. Try again and open with your name and the reason for your call.",
       metrics,
-      criteria: groundCriteria(heuristicCriteria(persona, turns), turns),
+      criteria: groundCriteria(heuristicCriteria(persona, turns), turns, persona),
       topFixes: [
         "Say your name and the reason for the call in your first sentence.",
         "Ask one open question about how the buyer works today.",
@@ -124,7 +133,9 @@ export async function buildDebrief(args: {
     const criteria = groundCriteria(
       ai.criteria.map((c) => ({ ...c, title: criterionTitle(c.id) })),
       turns,
+      persona,
     );
+    const weakest = [...criteria].sort((a, b) => a.score - b.score).slice(0, 3);
     const buyerText = normalize(turns.filter(t => t.role === "buyer").map(t => t.text).join(" "));
     const confirmed = ai.painsFound.filter(id => persona.pains.some(p => p.id === id && p.keywords.some(keyword => buyerText.includes(normalize(keyword)))));
     const found = [...new Set([...painsHint, ...confirmed])].filter((id) => painIds.includes(id));
@@ -132,10 +143,10 @@ export async function buildDebrief(args: {
       callId,
       total: criteria.reduce((s, c) => s + c.score, 0),
       outcome: ai.outcome,
-      summary: ai.summary,
+      summary: safeCoaching(ai.summary, `The call ended ${ai.outcome === "meeting" ? "with an agreed next step" : "without a meeting"}. Review the quoted criteria and suggested questions before your next call.`),
       metrics,
       criteria,
-      topFixes: ai.topFixes.slice(0, 3),
+      topFixes: ai.topFixes.slice(0, 3).map((fix, i) => safeCoaching(fix, `${weakest[i].title}: ${weakest[i].better}`)),
       scoreTimeline: timeline,
       finalScore,
       painsFound: found,
@@ -144,7 +155,7 @@ export async function buildDebrief(args: {
     };
   }
 
-  const criteria = groundCriteria(heuristicCriteria(persona, turns), turns);
+  const criteria = groundCriteria(heuristicCriteria(persona, turns), turns, persona);
   const found = painsHint.filter((id) => painIds.includes(id));
   const weakest = [...criteria].sort((a, b) => a.score - b.score).slice(0, 3);
   const outcome = heuristicOutcome(turns, finalScore);

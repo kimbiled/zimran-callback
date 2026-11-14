@@ -22,11 +22,13 @@ describe("AI evidence and fallbacks", () => {
     const criteria: Criterion[] = [
       { id: "opening", title: "", score: 20, quote: "I introduced myself perfectly", at: 99, better: "Introduce yourself" },
       { id: "discovery", title: "", score: 12, quote: "onboard new staff", at: 999, better: "Quantify the time" },
+      { id: "objections", title: "", score: 8, quote: "onboard new staff", at: 3, better: "What would your team need from a Salesforce integration?" },
     ];
     const result = groundCriteria(criteria, [turn]);
     expect(result).toHaveLength(5);
     expect(result[0]).toMatchObject({ score: 0, quote: "", at: -1 });
     expect(result[1]).toMatchObject({ score: 12, at: 3 });
+    expect(result[2].better).toBe("What would your team need from a Salesforce integration?");
   });
   it("uses the production judge and builds a computed five-criterion total offline", async () => {
     vi.stubEnv("AI_DISABLED", "1");

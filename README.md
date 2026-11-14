@@ -83,11 +83,13 @@ npm run eval -- --live
 
 Live evaluation requires **all** verdicts to come from AI, ≥80% correctly ordered pairs and 100% grounded score changes. It is manual because it spends tokens. Offline results are not cloud-model quality evidence.
 
-Verified offline baseline: **10/10 pairs**, mean final interest **−4.3 vs −42**, **50/50** score movements grounded. Live production results are not claimed from this workspace. See [Proof evidence](docs/proof.md) and [remaining production checks](docs/ai-voice.md).
+Verified offline baseline: **10/10 pairs**, mean final interest **−4.3 vs −42**, **50/50** score movements grounded. See [Proof evidence](docs/proof.md) and [remaining production checks](docs/ai-voice.md).
 
 Live model check on 2026-11-14 through the local production judge and AI Gateway: **10/10 pairs ordered correctly**, **60/60 AI verdicts**, **60/60 retained score movements grounded**, mean final interest **+5.6 vs −52.7**. Four rate-limited batches were retried after a pause; this is not a 100% availability claim. The initial unpaced run was rejected for mixed AI/heuristic results. These are 20 scripted calls, not production traffic or real-user accuracy. Machine-readable evidence: [live report](evals/proof/live-2026-11-14.json).
 
 `npm run test:live` additionally checks five synthetic text calls (SDR, AE, injection, repetition and final refusal), five model debriefs and buyers from three factual summaries of actual job postings. It spends model tokens, uses `BASE_URL` (default `http://127.0.0.1:3001`) and writes an ignored `output/live-quality-checks.json`. The paired live eval uses small paced batches so a free-tier rate limit cannot masquerade as model success.
+
+Production verification on 2026-11-14 at [zimran-callback.vercel.app](https://zimran-callback.vercel.app), deployed code `9e6a599`: **13/13 AI judge verdicts**, **5/5 AI debriefs**, correct outcomes for all five synthetic scenarios and **3/3 generated vacancy buyers**. A separate text-buyer smoke returned two AI replies with identical cached retries. Neon persistence, debrief idempotence and quota checks passed. Production uses the existing OpenAI key directly; an additional Gateway balance is not required for this path. [Production results](evals/proof/production-2026-11-14.json). This suite does not replace the paired benchmark or real voice calls.
 
 ## Recorded replay and feedback
 
@@ -122,6 +124,6 @@ Voice startup has a total deadline, partial resources are cleaned up, repeated c
 
 GPT-Live has no configurable five-minute provider limit. An untrusted client can ignore a browser timer; authoritative server closure needs a trusted sideband controller. The existing A free-call quota is checked at start and charged at completion, so simultaneous call reservation and IP limits still require server-side hardening.
 
-Three actual vacancy summaries in `evals/jobs/real-postings.json` were tested against cloud generation and the generated customer roles/products were reviewed. Five synthetic text-call debriefs were checked live; they do not substitute for five real voice calls. Real voice auditions, a genuine published recording, production configuration/inference and 20–50 testers still require service access and human participation. Buyer captions and timestamps originate on the client, so saved data is not forensic proof of human speech. No real calls, customer quotes or user counts are fabricated. The optional warmup is omitted.
+Three actual vacancy summaries in `evals/jobs/real-postings.json` were tested against cloud generation and the generated customer roles/products were reviewed locally and on production. Five synthetic text-call debriefs were checked in both environments; they do not substitute for five real voice calls. Real voice auditions, a genuine published recording and 20–50 testers still require human participation. Production runtime logs and protected paired eval require the owner's Vercel access and securely configured EVAL_KEY. Buyer captions and timestamps originate on the client, so saved data is not forensic proof of human speech. No real calls, customer quotes or user counts are fabricated. The optional warmup is omitted.
 
 Plans remain Interview Sprint $49 and Rep Gym $39/month. Stripe test card: `4242 4242 4242 4242`, any future date and any CVC. Live Stripe keys are blocked; demo checkout is not payment proof.
