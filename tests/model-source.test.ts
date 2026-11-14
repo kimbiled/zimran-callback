@@ -47,6 +47,21 @@ describe("production model source", () => {
     expect(result).toMatchObject({ source: "ai", score: 14, delta: 14 });
     expect(aiDiagnostics().judge).toMatchObject({ state: "ok", provider: "openai" });
   });
+  it("credits a pain the buyer revealed in reply to the previous question, even when the model omits it", async () => {
+    // Production case: the judge runs before the buyer answers, so the model never sees the reveal for "this" turn.
+    vi.stubEnv("OPENAI_API_KEY", "test-no-network"); vi.stubEnv("AI_DISABLED", "0"); vi.stubEnv("AI_PROVIDER", "openai");
+    const turns = [
+      { role: "rep" as const, text: "How long does it take a new hire to get fully up to speed?", start: 0, end: 4 },
+      { role: "buyer" as const, text: "Three to four weeks, and senior staff spend five to six hours a week training them.", start: 5, end: 9 },
+      { role: "rep" as const, text: "Who else would be involved in a decision like this?", start: 10, end: 13 },
+    ];
+    vi.mocked(generateText).mockResolvedValue({ output: { delta: 12, reason: "Asked about the decision process.", evidenceQuote: "Who else would be involved", event: "open_question", painsUncovered: [] } } as unknown as Awaited<ReturnType<typeof generateText>>);
+    const result = await judgeTurn({ ...input, turns });
+    expect(result).toMatchObject({ source: "ai", delta: 12 });
+    expect(result.painsUncovered).toEqual(["onboarding"]);
+    // Already-found pains are not counted twice.
+    expect((await judgeTurn({ ...input, turns, alreadyFound: ["onboarding"] })).painsUncovered).toEqual([]);
+  });
   it("makes provider failure visible while preserving the labelled offline fallback", async () => {
     vi.stubEnv("OPENAI_API_KEY", "test-no-network"); vi.stubEnv("AI_DISABLED", "0"); vi.stubEnv("AI_PROVIDER", "openai");
     const logs = vi.spyOn(console, "error").mockImplementation(() => {});

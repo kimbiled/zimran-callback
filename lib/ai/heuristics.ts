@@ -37,7 +37,8 @@ export function proposesNextStep(text: string): boolean {
   });
 }
 
-function matchedPains(text: string, persona: Persona): string[] {
+/** Hidden pains whose keywords appear in this text (code-verified evidence). */
+export function matchedPains(text: string, persona: Persona): string[] {
   const t = normalize(text);
   return persona.pains.filter((p) => p.keywords.some((k) => t.includes(normalize(k)))).map((p) => p.id);
 }
