@@ -3,6 +3,7 @@ import { PERSONAS, toPublic } from "@/lib/personas";
 import { applyRole } from "@/lib/roles";
 import { BuyerPicker } from "@/components/BuyerPicker";
 import { PhoneIcon } from "@/components/Header";
+import { PublishedReplays } from "@/components/PublishedReplays";
 
 const STEPS = [
   { n: "01", title: "Pick a buyer", text: "SDR cold call or AE discovery call. Choose a ready-made buyer or paste the job posting." },
@@ -71,6 +72,7 @@ export default function Home() {
         </div>
       </section>
 
+      <PublishedReplays />
       <section className="mx-auto max-w-6xl px-5 py-10">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {STEPS.map((s) => (

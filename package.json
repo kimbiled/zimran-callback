@@ -9,11 +9,13 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "eval": "node scripts/eval.mjs"
+    "test:live": "node --env-file-if-exists=.env.local scripts/check-live.mjs",
+    "eval": "node --env-file-if-exists=.env.local scripts/eval.mjs"
   },
   "dependencies": {
-    "@elevenlabs/react": "1.22.1",
+    "@ai-sdk/openai": "^4.0.118",
     "@neondatabase/serverless": "^1.2.1",
+    "@vercel/analytics": "^2.0.1",
     "ai": "7.0.173",
     "next": "16.4.6",
     "react": "^19.3.1",

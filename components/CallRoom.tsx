@@ -5,7 +5,6 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { ConversationProvider } from "@elevenlabs/react";
 import type { CallMode, CallStart, Persona, PersonaPublic, SalesRole } from "@/lib/types";
 import { useBuyerCall } from "@/lib/voice/useBuyerCall";
 import { CUSTOM_PERSONA_KEY, DIFFICULTY_LABEL, ROLE_LABEL } from "@/lib/labels";
@@ -15,11 +14,7 @@ import { TurnRow } from "./DebriefView";
 import { PhoneIcon } from "./Header";
 
 export default function CallRoom({ persona, role }: { persona: PersonaPublic | null; role: SalesRole }) {
-  return (
-    <ConversationProvider>
-      <Room initial={persona} role={role} />
-    </ConversationProvider>
-  );
+  return <Room initial={persona} role={role} />;
 }
 
 function Room({ initial, role }: { initial: PersonaPublic | null; role: SalesRole }) {
@@ -47,7 +42,7 @@ function Room({ initial, role }: { initial: PersonaPublic | null; role: SalesRol
       if (raw) {
         const p = JSON.parse(raw) as Persona;
         setCustom(p);
-        const r = applyRole(p, role); // only for the brief; the server applies the role itself
+        const r = applyRole(p, role); // The server independently applies the role to the saved buyer.
         setPersona({ id: p.id, name: p.name, title: p.title, company: p.company, industry: p.industry, product: p.product, difficulty: p.difficulty, goal: r.successStep, generated: true });
       }
     } catch {

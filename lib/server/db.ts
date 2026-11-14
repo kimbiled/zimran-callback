@@ -15,6 +15,8 @@ interface Store {
   getCall(id: string): Promise<CallRecord | null>;
   finishCall(id: string, turns: Turn[], debrief: Debrief): Promise<void>;
   listCalls(sessionId: string, limit?: number): Promise<CallRecord[]>;
+  publishSample(id: string, sessionId: string): Promise<boolean>;
+  listSamples(limit?: number): Promise<CallRecord[]>;
 }
 
 const SCHEMA = [
@@ -123,6 +125,22 @@ function neonStore(url: string): Store {
         order by started_at asc limit ${limit}`) as Row[];
       return rows.map(rowToCall);
     },
+    async publishSample(id, sessionId) {
+      await init();
+      const rows = await sql`update calls set is_sample = true
+        where id = ${id}::uuid and session_id = ${sessionId}::uuid
+          and status = 'done' and mode = 'voice' and ended_at is not null
+          and debrief->>'source' = 'ai' returning id`;
+      return rows.length > 0;
+    },
+    async listSamples(limit = 6) {
+      await init();
+      const rows = (await sql`select * from calls
+        where is_sample = true and status = 'done' and mode = 'voice'
+          and debrief->>'source' = 'ai'
+        order by started_at desc limit ${Math.max(1, Math.min(12, Math.floor(limit)))}`) as Row[];
+      return rows.map(rowToCall);
+    },
   };
 }
 
@@ -171,6 +189,18 @@ function memoryStore(): Store {
     },
     async listCalls(sessionId, limit = 50) {
       return [...m.calls.values()].filter((c) => c.sessionId === sessionId).slice(-limit);
+    },
+    async publishSample(id, sessionId) {
+      const call = m.calls.get(id);
+      if (!call || call.sessionId !== sessionId || call.status !== "done" || call.mode !== "voice" || !call.endedAt || call.debrief?.source !== "ai") return false;
+      call.isSample = true;
+      return true;
+    },
+    async listSamples(limit = 6) {
+      return [...m.calls.values()]
+        .filter(c => c.isSample && c.status === "done" && c.mode === "voice" && c.debrief?.source === "ai")
+        .sort((a, b) => b.startedAt.localeCompare(a.startedAt))
+        .slice(0, Math.max(1, Math.min(12, Math.floor(limit))));
     },
   };
 }

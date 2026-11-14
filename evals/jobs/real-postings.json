@@ -1,0 +1,29 @@
+[
+  {
+    "company": "Datadog",
+    "title": "Sales Development Representative - Summer 2027 Graduates (Boston)",
+    "source": "https://careers.datadoghq.com/detail/8287316/",
+    "checkedAt": "2026-11-14",
+    "inputKind": "Factual summary of an actual posting, not its full text",
+    "text": "Datadog is recruiting a Sales Development Representative in Boston. The SDR prospects and qualifies technology customers, uses outbound calls and emails, identifies customer needs and schedules discovery meetings. Datadog sells observability and security software for applications, infrastructure, logs and metrics.",
+    "expectedBuyerArea": "engineering/IT observability"
+  },
+  {
+    "company": "Ramp",
+    "title": "Sales Development Representative, SMB",
+    "source": "https://jobs.ashbyhq.com/ramp/60d6aef5-b60d-4163-82b7-00bad89c6d3f",
+    "checkedAt": "2026-11-14",
+    "inputKind": "Factual summary of an actual posting, not its full text",
+    "text": "Ramp is recruiting an SMB Sales Development Representative in New York or San Francisco. The sales organization develops outbound selling skills and grows the customer pipeline. Ramp provides finance teams with corporate spending and payment workflows, risk checks, spend categorization and accounting close automation.",
+    "expectedBuyerArea": "small-business finance/spend management"
+  },
+  {
+    "company": "Ramp",
+    "title": "Sales Development Representative, Strategic Accounts",
+    "source": "https://jobs.ashbyhq.com/ramp/7c55aa7c-90a5-46af-9ce7-134fbf370284",
+    "checkedAt": "2026-11-14",
+    "inputKind": "Factual summary of an actual posting, not its full text",
+    "text": "Ramp is recruiting a Sales Development Representative for Strategic Accounts in New York. This is a sales-development role focused on Ramp's strategic segment. The company supplies finance infrastructure for business payments, corporate spending, transaction risk, categorization and closing the books.",
+    "expectedBuyerArea": "enterprise finance/spend management"
+  }
+]

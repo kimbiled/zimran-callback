@@ -5,14 +5,14 @@ import { z } from "zod";
 import type { Criterion, CriterionId, Debrief, Persona, TimelinePoint, Turn } from "../types";
 import { callMetrics } from "../metrics";
 import { clamp, normalize, quoteIsGrounded } from "./guards";
-import { criterionTitle, heuristicCriteria } from "./heuristics";
-import { aiEnabled, DEBRIEF_MODEL, withTimeout } from "./model";
+import { criterionAdvice, criterionTitle, heuristicCriteria, proposesNextStep } from "./heuristics";
+import { aiEnabled, DEBRIEF_MODEL, recordAiFailure, recordAiSuccess, resolveModel, withTimeout } from "./model";
 import { DEBRIEF_INSTRUCTIONS, personaCard, transcript } from "./prompts";
 
 export const CRITERIA_ORDER: CriterionId[] = ["opening", "discovery", "objections", "value", "next_step"];
 
 const DebriefSchema = z.object({
-  summary: z.string(),
+  summary: z.string().min(1).max(1200),
   outcome: z.enum(["meeting", "no_meeting"]),
   criteria: z.array(
     z.object({
@@ -22,32 +22,36 @@ const DebriefSchema = z.object({
       at: z.number(),
       better: z.string(),
     }),
-  ),
-  topFixes: z.array(z.string()),
+  ).length(5).refine(list => new Set(list.map(c => c.id)).size === 5, "Five unique criteria required"),
+  topFixes: z.array(z.string().min(1).max(600)).length(3),
   painsFound: z.array(z.string()),
 });
 
 const AGREE = ["works for me", "that works", "11 works", "10 works", "2 works", "3 works", "let's do it", "let's do that", "sounds good", "send me the invite", "send the invite", "send an invite", "works for me", "that works", "i'm in", "deal", "book it", "put it on my calendar"];
 
-export function heuristicOutcome(turns: Turn[], finalScore: number): Debrief["outcome"] {
-  const lastBuyer = turns
-    .filter((t) => t.role === "buyer")
-    .slice(-2)
-    .map((t) => normalize(t.text))
-    .join(" ");
-  return finalScore >= 10 && AGREE.some((a) => lastBuyer.includes(normalize(a))) ? "meeting" : "no_meeting";
+export function heuristicOutcome(turns: Turn[], _finalScore: number): Debrief["outcome"] {
+  let proposed = false, accepted = false;
+  for (const turn of turns) {
+    const text = normalize(turn.text).replace(/^no (?:problem|worries)(?: at all)?\s*/, "");
+    if (turn.role === "rep") { proposed = proposesNextStep(turn.text); continue; }
+    if (!proposed && !accepted) continue;
+    const refused = (proposed && /^(?:no|nope|no thanks|no thank you)$/.test(text)) || /\b(?:cancel|never mind|nevermind|no longer|not interested)\b|\b(?:no|don't|do not|can't|cannot|won't|will not|not|doesn't|does not)\b.{0,60}\b(?:send|invite|agree|agreeing|meet|meeting|demo|pilot|work|available|make it|book|proceed)\b/.test(text);
+    if (refused) accepted = false;
+    else if (proposed && (AGREE.some(a => text.includes(normalize(a))) || /^(?:yes|yep|sure|absolutely)\b/.test(text))) accepted = true;
+  }
+  return accepted ? "meeting" : "no_meeting";
 }
 
-function groundCriteria(list: Criterion[], turns: Turn[]): Criterion[] {
+export function groundCriteria(list: Criterion[], turns: Turn[]): Criterion[] {
   const rep = turns.filter((t) => t.role === "rep");
   return CRITERIA_ORDER.map((id) => {
     const c = list.find((x) => x.id === id);
-    const base: Criterion = c ?? { id, title: criterionTitle(id), score: 0, quote: "", at: -1, better: "" };
+    const base: Criterion = c ?? { id, title: criterionTitle(id), score: 0, quote: "", at: -1, better: criterionAdvice(id) };
     const match = base.quote ? rep.find((t) => quoteIsGrounded(base.quote, t.text)) : undefined;
     return {
       ...base,
       title: criterionTitle(id),
-      score: Math.round(clamp(base.score, 0, 20)),
+      score: match ? Math.round(clamp(base.score, 0, 20)) : 0,
       quote: match ? base.quote : "",
       at: match ? Math.round(match.start) : -1,
     };
@@ -74,7 +78,7 @@ export async function buildDebrief(args: {
       outcome: "no_meeting",
       summary: "The call ended before you said anything. Try again and open with your name and the reason for your call.",
       metrics,
-      criteria: groundCriteria([], turns),
+      criteria: groundCriteria(heuristicCriteria(persona, turns), turns),
       topFixes: [
         "Say your name and the reason for the call in your first sentence.",
         "Ask one open question about how the buyer works today.",
@@ -92,10 +96,13 @@ export async function buildDebrief(args: {
   if (aiEnabled()) {
     try {
       const { output } = await withTimeout(
-        generateText({
-          model: DEBRIEF_MODEL,
+        (signal) => generateText({
+          model: resolveModel(DEBRIEF_MODEL),
           instructions: DEBRIEF_INSTRUCTIONS,
           temperature: 0.2,
+          abortSignal: signal,
+          maxRetries: 0,
+          maxOutputTokens: 3000,
           output: Output.object({ schema: DebriefSchema, name: "call_debrief" }),
           prompt: [
             personaCard(persona),
@@ -107,8 +114,9 @@ export async function buildDebrief(args: {
         25000,
       );
       ai = output;
+      recordAiSuccess("debrief", DEBRIEF_MODEL);
     } catch (e) {
-      console.error("debrief AI failed, using heuristic", e);
+      recordAiFailure("debrief", e, DEBRIEF_MODEL);
     }
   }
 
@@ -117,7 +125,9 @@ export async function buildDebrief(args: {
       ai.criteria.map((c) => ({ ...c, title: criterionTitle(c.id) })),
       turns,
     );
-    const found = [...new Set([...ai.painsFound, ...painsHint])].filter((id) => painIds.includes(id));
+    const buyerText = normalize(turns.filter(t => t.role === "buyer").map(t => t.text).join(" "));
+    const confirmed = ai.painsFound.filter(id => persona.pains.some(p => p.id === id && p.keywords.some(keyword => buyerText.includes(normalize(keyword)))));
+    const found = [...new Set([...painsHint, ...confirmed])].filter((id) => painIds.includes(id));
     return {
       callId,
       total: criteria.reduce((s, c) => s + c.score, 0),

@@ -5,13 +5,13 @@ import { z } from "zod";
 import type { JudgeResponse, Persona, Turn } from "../types";
 import { guardJudge, type RawJudge } from "./guards";
 import { heuristicJudge } from "./heuristics";
-import { aiEnabled, JUDGE_MODEL, withTimeout } from "./model";
+import { aiEnabled, JUDGE_MODEL, recordAiFailure, recordAiSuccess, resolveModel, withTimeout } from "./model";
 import { JUDGE_INSTRUCTIONS, personaCard, transcript } from "./prompts";
 
 const JudgeSchema = z.object({
   delta: z.number().int().min(-25).max(25),
-  reason: z.string(),
-  evidenceQuote: z.string(),
+  reason: z.string().min(1).max(120),
+  evidenceQuote: z.string().max(4000),
   event: z.enum([
     "open_question",
     "pain_uncovered",
@@ -44,12 +44,15 @@ export async function judgeTurn(args: {
   let source: JudgeResponse["source"] = "ai";
   if (aiEnabled()) {
     try {
-      const context = turns.slice(-10);
+      const context = turns.slice(-6);
       const { output } = await withTimeout(
-        generateText({
-          model: JUDGE_MODEL,
+        (signal) => generateText({
+          model: resolveModel(JUDGE_MODEL),
           instructions: JUDGE_INSTRUCTIONS,
           temperature: 0,
+          abortSignal: signal,
+          maxRetries: 0,
+          maxOutputTokens: 700,
           output: Output.object({ schema: JudgeSchema, name: "judge_verdict" }),
           prompt: [
             personaCard(persona),
@@ -62,8 +65,9 @@ export async function judgeTurn(args: {
         8000,
       );
       raw = output;
+      recordAiSuccess("judge", JUDGE_MODEL);
     } catch (e) {
-      console.error("judge AI failed, using heuristic", e);
+      recordAiFailure("judge", e, JUDGE_MODEL);
     }
   }
   if (!raw) {

@@ -13,6 +13,8 @@ export type Turn = {
   delta?: number;
   score?: number;
   reason?: string;
+  /** Persisted by the server with the verdict; separate from the debrief model source. */
+  judgeSource?: "ai" | "heuristic";
 };
 
 export type Difficulty = "easy" | "medium" | "hard";
@@ -154,19 +156,17 @@ export type CallRecord = {
   debrief: Debrief | null;
 };
 
-export type VoiceProvider = "elevenlabs" | "gpt-live";
+export type VoiceProvider = "gpt-live" | "text";
 
 /** POST /api/calls response: everything the voice layer needs to start the call */
 export type CallStart = {
   callId: string;
   persona: PersonaPublic;
   voice: {
-    /** gpt-live: browser connects via POST /api/voice/session; ElevenLabs credentials stay as a fallback */
+    /** Voice uses the server-mediated GPT-Live handshake; text uses /api/buyer. */
     provider: VoiceProvider;
-    agentId: string | null;
-    signedUrl: string | null;
     voiceId: string;
-    dynamicVariables: { name: string; opening_line: string; brief: string };
+    openingLine: string;
     maxSeconds: number;
   };
 };

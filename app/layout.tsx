@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Header } from "@/components/Header";
+import { Analytics } from "@vercel/analytics/next";
 
 export const metadata: Metadata = {
   title: "Callback · Practice the cold call before the interview",
@@ -25,8 +26,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Header />
         <main>{children}</main>
         <footer className="mx-auto max-w-6xl px-5 py-10 text-sm text-mute">
-          Callback · The buyer speaks through ElevenLabs. A separate judge model scores every turn. Metrics are computed in code.
+          Callback · The buyer speaks through GPT-Live. A separate judge scores every turn. Metrics are computed in code.
         </footer>
+        <Analytics />
       </body>
     </html>
   );

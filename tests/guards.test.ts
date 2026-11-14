@@ -17,6 +17,8 @@ describe("quoteIsGrounded", () => {
   it("rejects invented quotes", () => {
     expect(quoteIsGrounded("we cut onboarding time in half", "Is now a good time?")).toBe(false);
     expect(quoteIsGrounded("", "anything")).toBe(false);
+    expect(quoteIsGrounded("we save time with onboarding", "We have onboarding. Can you save us time with a report?")).toBe(false);
+    expect(quoteIsGrounded("train", "We retrain staff.")).toBe(false);
   });
 });
 

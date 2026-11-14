@@ -4,9 +4,8 @@
 import { z } from "zod";
 import { ALLOWED_VOICE_IDS, getPersona, toPublic, VOICES } from "@/lib/personas";
 import { PersonaSchema } from "@/lib/ai/persona-gen";
-import { buildBrief } from "@/lib/voice/brief";
 import { applyRole } from "@/lib/roles";
-import { MAX_CALL_SECONDS, voiceCredentials, voiceProvider } from "@/lib/voice/server";
+import { MAX_CALL_SECONDS, voiceProvider } from "@/lib/voice/server";
 import { db } from "@/lib/server/db";
 import { FREE_CALL_LIMIT, sessionId } from "@/lib/server/session";
 import { bad, json, readJson } from "@/lib/server/validate";
@@ -15,7 +14,7 @@ import type { CallStart, Persona } from "@/lib/types";
 const Body = z.object({
   personaId: z.string().max(60).optional(),
   customPersona: PersonaSchema.extend({
-    id: z.string().regex(/^custom-[a-z0-9]{4,16}$/),
+    id: z.string().regex(/^custom-[a-z0-9-]{4,40}$/),
     voiceId: z.string().max(40),
     generated: z.boolean().optional(),
   }).optional(),
@@ -54,15 +53,13 @@ export async function POST(req: Request) {
   const callId = crypto.randomUUID();
   await store.createCall({ id: callId, sessionId: sid, persona, mode });
 
-  const creds = await voiceCredentials(mode);
   const body: CallStart = {
     callId,
     persona: toPublic(persona),
     voice: {
       provider: voiceProvider(mode),
-      ...creds,
       voiceId: persona.voiceId,
-      dynamicVariables: { name: persona.firstName, opening_line: persona.openingLine, brief: buildBrief(persona) },
+      openingLine: persona.openingLine,
       maxSeconds: MAX_CALL_SECONDS,
     },
   };

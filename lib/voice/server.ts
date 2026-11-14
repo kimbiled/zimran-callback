@@ -1,84 +1,59 @@
-// [B] Server side of voice: which provider runs the call and the credentials it needs.
-// ElevenLabs: public agent (agentId) or, with ELEVENLABS_API_KEY, a signed URL.
-// GPT-Live (OpenAI): with OPENAI_API_KEY, voice calls go through POST /api/voice/session,
-// which forwards the browser's WebRTC offer to OpenAI. The key never leaves the server.
-
+// Server-only GPT-Live setup. Permanent credentials and the buyer profile never enter the browser.
 import type { CallMode, Persona, VoiceProvider } from "../types";
 import { VOICES } from "../personas";
 import { buyerInstructions } from "./brief";
 
-/** The "Callback AI Buyer" agent in ElevenLabs. Override with ELEVENLABS_AGENT_ID. */
-export const DEFAULT_AGENT_ID = "agent_5501m7chgm92fe7rbwpaw8behtws";
-export const MAX_CALL_SECONDS = Number(process.env.MAX_CALL_SECONDS ?? 300);
 export const GPT_LIVE_MODEL = process.env.GPT_LIVE_MODEL || "gpt-live-1";
-const OPENAI_LIVE_URL = "https://api.openai.com/v1/live/sessions";
-
-export function agentId(): string {
-  return process.env.ELEVENLABS_AGENT_ID || DEFAULT_AGENT_ID;
+export const MAX_CALL_SECONDS = callDuration(process.env.MAX_CALL_SECONDS);
+export function callDuration(value: string | undefined): number {
+  const seconds = Number(value ?? 300);
+  return Number.isFinite(seconds) && seconds > 0 ? Math.max(1, Math.min(300, Math.floor(seconds))) : 300;
 }
+export function gptLiveEnabled(): boolean { return Boolean(process.env.OPENAI_API_KEY?.trim()); }
+export function voiceProvider(mode: CallMode): VoiceProvider { return mode === "voice" ? "gpt-live" : "text"; }
 
-export function gptLiveEnabled(): boolean {
-  return Boolean(process.env.OPENAI_API_KEY) && process.env.VOICE_PROVIDER !== "elevenlabs";
-}
-
-/** GPT-Live has no text-only mode, so text calls always stay on ElevenLabs. */
-export function voiceProvider(mode: CallMode): VoiceProvider {
-  return mode === "voice" && gptLiveEnabled() ? "gpt-live" : "elevenlabs";
-}
-
-/** Each ElevenLabs buyer voice → a GPT-Live voice of the same presentation (English, mostly North American). */
-const GPT_LIVE_VOICES: Record<string, string> = {
-  [VOICES.jessica]: "gleam",
-  [VOICES.sarah]: "delta",
-  [VOICES.roger]: "meridian",
-  [VOICES.chris]: "cinder",
-  [VOICES.eric]: "vesper",
+const voices: Record<string, string> = {
+  [VOICES.jessica]: "gleam", [VOICES.sarah]: "delta", [VOICES.roger]: "meridian",
+  [VOICES.chris]: "cinder", [VOICES.eric]: "vesper",
 };
-
+const liveVoices = new Set(["gleam", "delta", "meridian", "cinder", "vesper", "marin"]);
 export function gptLiveVoice(p: Pick<Persona, "voiceId" | "gender">): string {
-  return GPT_LIVE_VOICES[p.voiceId] ?? (p.gender === "female" ? "gleam" : "meridian");
+  return voices[p.voiceId] ?? (liveVoices.has(p.voiceId) ? p.voiceId : p.gender === "female" ? "gleam" : "meridian");
 }
-
-/** Forwards the browser's SDP offer to OpenAI and returns the SDP answer. */
-export async function createGptLiveSession(persona: Persona, offerSdp: string): Promise<{ sdp: string; sessionId: string }> {
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) throw new Error("OPENAI_API_KEY is not set");
-  const res = await fetch(OPENAI_LIVE_URL, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      session: {
-        model: GPT_LIVE_MODEL,
-        instructions: buyerInstructions(persona),
-        audio: { output: { voice: gptLiveVoice(persona) } },
-      },
-      transport: { type: "webrtc", sdp: offerSdp },
-    }),
-    cache: "no-store",
-  });
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(`OpenAI live session ${res.status}: ${detail.slice(0, 500)}`);
+export class LiveSessionError extends Error {
+  constructor(readonly status: number | null, readonly code: "configuration" | "provider" | "response" | "timeout") {
+    super(`GPT-Live ${code}${status === null ? "" : ` (${status})`}`);
   }
-  const data = (await res.json()) as { session?: { id?: string }; transport?: { sdp?: string } };
-  if (!data.transport?.sdp) throw new Error("OpenAI live session: no SDP answer");
-  return { sdp: data.transport.sdp, sessionId: data.session?.id ?? "" };
 }
-
-export async function voiceCredentials(_mode: CallMode): Promise<{ agentId: string | null; signedUrl: string | null }> {
-  const key = process.env.ELEVENLABS_API_KEY;
-  const id = agentId();
-  if (!key) return { agentId: id, signedUrl: null };
+export async function createGptLiveSession(persona: Persona, offerSdp: string, signal?: AbortSignal): Promise<{ sdp: string; sessionId: string }> {
+  const key = process.env.OPENAI_API_KEY?.trim();
+  if (!key) throw new LiveSessionError(null, "configuration");
+  const timeout = AbortSignal.timeout(15_000);
+  let response: Response;
   try {
-    const res = await fetch(`https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id=${encodeURIComponent(id)}`, {
-      headers: { "xi-api-key": key },
-      cache: "no-store",
+    response = await fetch("https://api.openai.com/v1/live/sessions", {
+      method: "POST", cache: "no-store",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+      body: JSON.stringify({
+        session: {
+          model: GPT_LIVE_MODEL, instructions: buyerInstructions(persona), store: false,
+          delegation: { type: "client", acknowledgement_delay_ms: 800 },
+          audio: { output: { voice: gptLiveVoice(persona) } },
+          input: [{ type: "message", role: "developer", content: [{ type: "input_text", text: "Greet the caller now with your opening line, then listen." }] }],
+          client: { data_channel: {
+            allowed_client_events: ["session.close", "session.thinking.append"],
+            allowed_server_events: ["session.started", "session.closed", "session.input_transcript.delta", "session.output_transcript.delta", "session.delegation.created", "error"].map(type => ({ type })),
+          } },
+        },
+        transport: { type: "webrtc", sdp: offerSdp },
+      }),
     });
-    if (!res.ok) throw new Error(`signed url ${res.status}`);
-    const data = (await res.json()) as { signed_url?: string };
-    if (data.signed_url) return { agentId: null, signedUrl: data.signed_url };
-  } catch (e) {
-    console.error("ElevenLabs signed URL failed, falling back to public agent", e);
+  } catch { throw new LiveSessionError(null, "timeout"); }
+  if (!response.ok) throw new LiveSessionError(response.status, "provider");
+  const data = await response.json().catch(() => null) as { session?: { id?: unknown }; transport?: { sdp?: unknown } } | null;
+  if (typeof data?.transport?.sdp !== "string" || !data.transport.sdp.startsWith("v=0") || typeof data.session?.id !== "string" || !data.session.id) {
+    throw new LiveSessionError(response.status, "response");
   }
-  return { agentId: id, signedUrl: null };
+  return { sdp: data.transport.sdp, sessionId: data.session.id };
 }

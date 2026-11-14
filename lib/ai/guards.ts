@@ -25,18 +25,13 @@ export function normalize(s: string): string {
 
 /**
  * The judge's quote must actually appear in the rep's turn:
- * an exact match after normalization, or at least 70% of the quote's words.
+ * a contiguous match after punctuation/case normalization, with word boundaries.
  */
 export function quoteIsGrounded(quote: string, repText: string): boolean {
   const q = normalize(quote);
   const r = normalize(repText);
   if (!q) return false;
-  if (r.includes(q)) return true;
-  const qWords = words(q);
-  if (qWords.length === 0) return false;
-  const rSet = new Set(words(r));
-  const hits = qWords.filter((w) => rSet.has(w)).length;
-  return hits / qWords.length >= 0.7;
+  return ` ${r} `.includes(` ${q} `);
 }
 
 export type RawJudge = {
@@ -56,6 +51,7 @@ export function guardJudge(
   let delta = Math.round(clamp(raw.delta, -MAX_DELTA, MAX_DELTA));
   let reason = raw.reason?.trim() || "No noticeable effect.";
   let event = raw.event;
+  let evidenceQuote = raw.evidenceQuote ?? "";
 
   // No evidence in the rep's own words, no points.
   const grounded = quoteIsGrounded(raw.evidenceQuote ?? "", ctx.repText);
@@ -70,6 +66,7 @@ export function guardJudge(
     delta = Math.min(delta, -5);
     event = "monologue";
     reason = "That turn ran too long. The buyer is tuning out.";
+    evidenceQuote = ctx.repText.trim().split(/\s+/).slice(0, 20).join(" ");
   }
 
   const known = new Set(ctx.painIds);
@@ -81,8 +78,8 @@ export function guardJudge(
   const score = Math.round(clamp(ctx.prevScore + delta, MIN_SCORE, MAX_SCORE));
   return {
     delta: score - ctx.prevScore,
-    reason: reason.slice(0, 200),
-    evidenceQuote: grounded ? raw.evidenceQuote : "",
+    reason: reason.slice(0, 120),
+    evidenceQuote: event === "monologue" || grounded ? evidenceQuote : "",
     event,
     painsUncovered,
     score,

@@ -4,7 +4,7 @@ import { generateText, Output } from "ai";
 import { z } from "zod";
 import type { Persona } from "../types";
 import { PERSONAS, VOICES } from "../personas";
-import { aiEnabled, JUDGE_MODEL, withTimeout } from "./model";
+import { aiEnabled, JUDGE_MODEL, recordAiFailure, recordAiSuccess, resolveModel, withTimeout } from "./model";
 import { PERSONA_GEN_INSTRUCTIONS } from "./prompts";
 import { normalize } from "./guards";
 
@@ -29,18 +29,25 @@ export const PersonaSchema = z.object({
       }),
     )
     .min(2)
-    .max(4),
+    .max(4).refine(pains => new Set(pains.map(p => p.id)).size === pains.length, "Pain IDs must be unique"),
   budget: z.string().min(5).max(300),
   objections: z.array(z.string().min(3).max(200)).min(2).max(4),
-  meetingTriggers: z.array(z.string().min(3).max(240)).min(1).max(4),
+  meetingTriggers: z.array(z.string().min(3).max(240)).min(2).max(4),
   turnOffs: z.array(z.string().min(3).max(200)).min(1).max(4),
   successStep: z.string().min(3).max(200),
+});
+
+const GeneratedPain = PersonaSchema.shape.pains.element.extend({
+  text: z.string().min(5).max(300).regex(/\d/, "Include a concrete numeric quantity"),
+});
+export const GeneratedPersonaSchema = PersonaSchema.extend({
+  pains: z.array(GeneratedPain).length(3).refine(pains => new Set(pains.map(p => p.id)).size === 3, "Pain IDs must be unique"),
 });
 
 export function finalizePersona(p: z.infer<typeof PersonaSchema>): Persona {
   return {
     ...p,
-    id: `custom-${Math.random().toString(36).slice(2, 10)}`,
+    id: `custom-${crypto.randomUUID()}`,
     voiceId: p.gender === "female" ? VOICES.sarah : VOICES.eric,
     generated: true,
   };
@@ -72,18 +79,22 @@ export async function personaFromJob(jobText: string): Promise<{ persona: Person
   if (aiEnabled()) {
     try {
       const { output } = await withTimeout(
-        generateText({
-          model: JUDGE_MODEL,
+        (signal) => generateText({
+          model: resolveModel(JUDGE_MODEL),
           instructions: PERSONA_GEN_INSTRUCTIONS,
           temperature: 0.7,
-          output: Output.object({ schema: PersonaSchema, name: "buyer_persona" }),
+          abortSignal: signal,
+          maxRetries: 0,
+          maxOutputTokens: 2500,
+          output: Output.object({ schema: GeneratedPersonaSchema, name: "buyer_persona" }),
           prompt: `Job posting:\n"""\n${text}\n"""`,
         }),
         20000,
       );
+      recordAiSuccess("persona", JUDGE_MODEL);
       return { persona: finalizePersona(output), generated: true };
     } catch (e) {
-      console.error("persona generation failed, using closest persona", e);
+      recordAiFailure("persona", e, JUDGE_MODEL);
     }
   }
   return { persona: closestPersona(text), generated: false };

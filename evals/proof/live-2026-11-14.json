@@ -1,0 +1,212 @@
+{
+  "checkedAt": "2026-11-14T14:08:29.424Z",
+  "environment": "local",
+  "syntheticCalls": true,
+  "judgeModel": "openai/gpt-4.1-mini",
+  "debriefModel": "openai/gpt-4.1",
+  "paired": {
+    "calls": 20,
+    "pairs": 10,
+    "orderedPairs": 10,
+    "pairAccuracy": 100,
+    "meanStrong": 5.6,
+    "meanWeak": -52.7,
+    "groundedQuoteRate": 100,
+    "moves": 60,
+    "groundedMoves": 60,
+    "judgedTurns": 60,
+    "aiTurns": 60,
+    "transientRetries": 0,
+    "batchRetries": [
+      {
+        "pair": "hr-retention",
+        "reason": "rate_limit"
+      },
+      {
+        "pair": "sales-forecast",
+        "reason": "rate_limit"
+      },
+      {
+        "pair": "finance-close",
+        "reason": "rate_limit"
+      },
+      {
+        "pair": "engineering-incidents",
+        "reason": "rate_limit"
+      }
+    ],
+    "source": "ai",
+    "rows": [
+      {
+        "pair": "hr-onboarding",
+        "strong": 26,
+        "weak": -30,
+        "ordered": true
+      },
+      {
+        "pair": "hr-retention",
+        "strong": 28,
+        "weak": -30,
+        "ordered": true
+      },
+      {
+        "pair": "hr-knowledge",
+        "strong": 23,
+        "weak": -30,
+        "ordered": true
+      },
+      {
+        "pair": "sales-pipeline",
+        "strong": 5,
+        "weak": -50,
+        "ordered": true
+      },
+      {
+        "pair": "sales-forecast",
+        "strong": 10,
+        "weak": -47,
+        "ordered": true
+      },
+      {
+        "pair": "sales-ramp",
+        "strong": 6,
+        "weak": -50,
+        "ordered": true
+      },
+      {
+        "pair": "finance-close",
+        "strong": -11,
+        "weak": -70,
+        "ordered": true
+      },
+      {
+        "pair": "finance-risk",
+        "strong": -11,
+        "weak": -70,
+        "ordered": true
+      },
+      {
+        "pair": "engineering-incidents",
+        "strong": -9,
+        "weak": -75,
+        "ordered": true
+      },
+      {
+        "pair": "engineering-debugging",
+        "strong": -11,
+        "weak": -75,
+        "ordered": true
+      }
+    ],
+    "checkedAt": "2026-11-14T13:28:34.194Z",
+    "environment": "local"
+  },
+  "scenarios": [
+    {
+      "id": "sdr-earned-meeting",
+      "total": 71,
+      "outcome": "meeting",
+      "source": "ai",
+      "painsFound": [
+        "onboarding"
+      ],
+      "aiJudgments": 3,
+      "judgeLatenciesMs": [
+        2212,
+        1662,
+        1737
+      ],
+      "debriefMs": 3630,
+      "errors": []
+    },
+    {
+      "id": "early-close-and-injection",
+      "total": 2,
+      "outcome": "no_meeting",
+      "source": "ai",
+      "painsFound": [],
+      "aiJudgments": 2,
+      "judgeLatenciesMs": [
+        1596,
+        4110
+      ],
+      "debriefMs": 3344,
+      "errors": []
+    },
+    {
+      "id": "ae-agenda-and-discovery",
+      "total": 75,
+      "outcome": "meeting",
+      "source": "ai",
+      "painsFound": [
+        "onboarding",
+        "turnover"
+      ],
+      "aiJudgments": 3,
+      "judgeLatenciesMs": [
+        1556,
+        1730,
+        2314
+      ],
+      "debriefMs": 4107,
+      "errors": []
+    },
+    {
+      "id": "final-refusal-overrides-acceptance",
+      "total": 32,
+      "outcome": "no_meeting",
+      "source": "ai",
+      "painsFound": [
+        "month_close"
+      ],
+      "aiJudgments": 2,
+      "judgeLatenciesMs": [
+        1473,
+        2150
+      ],
+      "debriefMs": 3791,
+      "errors": []
+    },
+    {
+      "id": "repeated-spoken-question",
+      "total": 13,
+      "outcome": "no_meeting",
+      "source": "ai",
+      "painsFound": [
+        "incidents"
+      ],
+      "aiJudgments": 3,
+      "judgeLatenciesMs": [
+        1954,
+        2113,
+        1711
+      ],
+      "debriefMs": 4087,
+      "errors": []
+    }
+  ],
+  "jobs": [
+    {
+      "source": "https://careers.datadoghq.com/detail/8287316/",
+      "title": "VP of IT Infrastructure",
+      "product": "Observability and Security Software",
+      "painCount": 3,
+      "pass": true
+    },
+    {
+      "source": "https://jobs.ashbyhq.com/ramp/60d6aef5-b60d-4163-82b7-00bad89c6d3f",
+      "title": "Finance Director",
+      "product": "corporate spending and payment workflow solution",
+      "painCount": 3,
+      "pass": true
+    },
+    {
+      "source": "https://jobs.ashbyhq.com/ramp/7c55aa7c-90a5-46af-9ce7-134fbf370284",
+      "title": "VP of Finance",
+      "product": "corporate finance infrastructure and payment management platform",
+      "painCount": 3,
+      "pass": true
+    }
+  ],
+  "failures": []
+}

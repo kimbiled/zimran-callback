@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { callMetrics, estimateSeconds } from "@/lib/metrics";
+import { callMetrics, countQuestions, estimateSeconds } from "@/lib/metrics";
 import type { Turn } from "@/lib/types";
 
 const turns: Turn[] = [
@@ -10,6 +10,11 @@ const turns: Turn[] = [
 ];
 
 describe("callMetrics", () => {
+  it("recognizes discovery requests in punctuation-free speech", () => {
+    expect(countQuestions("Walk me through your onboarding process")).toBe(1);
+    expect(countQuestions("Tell me which part takes the most time")).toBe(1);
+    expect(countQuestions("Our platform has many features")).toBe(0);
+  });
   it("computes talk ratio, questions, fillers and monologue from turns", () => {
     const m = callMetrics(turns);
     expect(m.durationSec).toBe(16);
@@ -23,6 +28,15 @@ describe("callMetrics", () => {
   it("handles an empty call", () => {
     const m = callMetrics([]);
     expect(m).toMatchObject({ durationSec: 0, talkRatio: 0, questions: 0, fillersPer100: 0, longestMonologueSec: 0 });
+  });
+
+  it("counts adjacent fillers and merges split rep speech without overlapping time", () => {
+    const m = callMetrics([
+      { role: "rep", text: "Um um uh", start: 0, end: 40 },
+      { role: "rep", text: "You know basically?", start: 30, end: 65 },
+      { role: "buyer", text: "Okay", start: 65, end: 100 },
+    ]);
+    expect(m).toMatchObject({ talkRatio: 65, longestMonologueSec: 65, fillersPer100: 83.3 });
   });
 
   it("estimates speech duration from words", () => {
