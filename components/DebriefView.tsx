@@ -2,17 +2,46 @@
 // [A] Full debrief: score, criteria with quotes, top fixes, interest replay, hidden profile reveal.
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
-import type { CallRecord, Criterion, Debrief, Turn } from "@/lib/types";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { RotateCcw, Trophy } from "lucide-react";
+import type { CallRank, CallRecord, Criterion, Debrief, Turn } from "@/lib/types";
 import { ScoreChart } from "./ScoreChart";
 import { signed } from "./Meter";
 import { FeedbackForm } from "./FeedbackForm";
 import { trackEvent } from "@/lib/analytics";
 import { ROLE_LABEL } from "@/lib/labels";
+import { callMetrics, HEALTHY_WPM, rankLine } from "@/lib/metrics";
+import { betterLineFor, emotionalDebrief } from "@/lib/emotion";
+import { EmotionPanel } from "./EmotionPanel";
+import { RetrySheet, type RetryTarget } from "./RetrySheet";
+import { ShareCall } from "./ShareCall";
 
 const fmt = (sec: number) => `${Math.floor(Math.max(0, sec) / 60)}:${String(Math.round(Math.max(0, sec)) % 60).padStart(2, "0")}`;
 
-export function DebriefView({ call, debrief }: { call: CallRecord; debrief: Debrief }) {
+/** The rep turn a criterion quote came from: exact text match first, then the turn starting at `at`. */
+function turnForCriterion(turns: Turn[], c: Criterion): number | null {
+  if (!c.quote) return null;
+  const clean = (s: string) => s.toLowerCase().replace(/[\u2018\u2019]/g, "'").replace(/\s+/g, " ").replace(/[.?!]+$/, "").trim();
+  const q = clean(c.quote);
+  const byText = turns.findIndex((t) => t.role === "rep" && clean(t.text).includes(q));
+  if (byText >= 0) return byText;
+  const byTime = c.at >= 0 ? turns.findIndex((t) => t.role === "rep" && Math.abs(Math.round(t.start) - c.at) <= 1) : -1;
+  return byTime >= 0 ? byTime : null;
+}
+
+export function DebriefView({
+  call,
+  debrief,
+  rank = null,
+  owner = false,
+}: {
+  call: CallRecord;
+  debrief: Debrief;
+  /** Where this total sits among real practice calls with the same buyer (server-computed). */
+  rank?: CallRank | null;
+  /** The viewer started this call (session cookie matches). */
+  owner?: boolean;
+}) {
   const { persona, turns } = call;
   const repIdx = turns.map((t, i) => (t.role === "rep" ? i : -1)).filter((i) => i >= 0);
   const [selected, setSelected] = useState<number | null>(null);
@@ -38,12 +67,30 @@ export function DebriefView({ call, debrief }: { call: CallRecord; debrief: Debr
   const selectedPoint = selected !== null ? scored.indexOf(selected) + 1 || null : null;
 
   const m = debrief.metrics;
+  // Pace and pauses are recomputed from the transcript with the call mode, so older debriefs get them too.
+  const pace = useMemo(() => callMetrics(turns, call.mode), [turns, call.mode]);
+  const emotion = useMemo(
+    () => emotionalDebrief({ turns, firstName: persona.firstName, mode: call.mode, initialScore: debrief.scoreTimeline[0]?.score, criteria: debrief.criteria }),
+    [turns, persona.firstName, call.mode, debrief.scoreTimeline, debrief.criteria],
+  );
+  const rankText = rank ? rankLine(rank, persona.firstName) : null;
+
+  // Retry is stateless and allowed on the viewer's own call and on published samples.
+  const canRetry = call.status === "done" && (owner || call.isSample);
+  const [retry, setRetry] = useState<RetryTarget | null>(null);
+  const [retryOpen, setRetryOpen] = useState(false);
+  const openRetry = (turnIndex: number, hint?: string | null) => {
+    setRetry({ turnIndex, hint: hint ?? betterLineFor(turns[turnIndex], debrief.criteria) });
+    setRetryOpen(true);
+  };
+  const wpm = pace.wordsPerMinute ?? null;
+  const pause = pace.longestPauseBeforeAnswerSec ?? null;
   const tone = debrief.total >= 70 ? "text-good" : debrief.total >= 45 ? "text-acc" : "text-bad";
   const againHref = `${persona.generated ? "/call/custom" : `/call/${persona.id}`}?role=${persona.role ?? "sdr"}`;
 
   return (
     <div className="mx-auto max-w-6xl px-5 py-8">
-      {call.isSample && (
+      {call.isSample && !owner && (
         <div className="mb-5 rounded-2xl bg-panel px-5 py-3 text-sm text-fg">
           Sample debrief. <Link href="/#buyers" className="font-semibold text-acc-d underline-offset-4 hover:underline">Make your own call</Link>, it's free.
         </div>
@@ -64,8 +111,19 @@ export function DebriefView({ call, debrief }: { call: CallRecord; debrief: Debr
                 {debrief.outcome === "meeting" ? "Meeting booked" : "No meeting"}
               </span>
               <div className="mt-2 text-sm text-mute">Final buyer interest {signed(debrief.finalScore)}</div>
+              {!!debrief.hintPenalty && (
+                <div className="mt-1 text-xs text-[#b9a8ff]">
+                  −{debrief.hintPenalty} for {debrief.hintsUsed} coach hint{debrief.hintsUsed === 1 ? "" : "s"}
+                </div>
+              )}
             </div>
           </div>
+          {rankText && (
+            <div className="pop mt-3 inline-flex items-center gap-2 rounded-full border border-line bg-white/5 px-3 py-1.5 text-sm" style={{ animationDelay: "200ms" }}>
+              <Trophy size={15} className="text-acc" aria-hidden="true" />
+              <span>{rankText}</span>
+            </div>
+          )}
           <p className="mt-4 text-[15px] leading-relaxed">{debrief.summary}</p>
           {debrief.source === "heuristic" && (
             <p className="mt-3 text-xs text-mute">Scored with the offline rubric because the AI judge was unavailable.</p>
@@ -96,22 +154,44 @@ export function DebriefView({ call, debrief }: { call: CallRecord; debrief: Debr
         </div>
       </section>
 
-      <section className="stagger mt-5 grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <section className="stagger mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
         <Stat label="Call length" value={fmt(m.durationSec)} />
         <Stat label="You talked" value={`${m.talkRatio}%`} hint="Aim for 40–60%" warn={m.talkRatio > 65} />
         <Stat label="Questions asked" value={String(m.questions)} warn={m.questions < 3} />
         <Stat label="Filler words" value={`${m.fillersPer100}`} hint="per 100 words" warn={m.fillersPer100 > 3} />
         <Stat label="Longest monologue" value={`${m.longestMonologueSec}s`} warn={m.longestMonologueSec > 45} />
+        <Stat
+          label="Speaking pace"
+          value={wpm === null ? "n/a" : `${wpm}`}
+          hint={wpm === null ? "Voice calls only" : `wpm · aim for ${HEALTHY_WPM.min}–${HEALTHY_WPM.max}`}
+          warn={wpm !== null && (wpm < HEALTHY_WPM.min || wpm > HEALTHY_WPM.max)}
+        />
+        <Stat
+          label="Longest pause"
+          value={pause === null ? "n/a" : `${pause}s`}
+          hint={pause === null ? "Voice calls only" : "before you answered"}
+          warn={pause !== null && pause > 4}
+        />
       </section>
 
       <section className="mt-5">
         <h2 className="display mb-3 text-2xl">Scorecard</h2>
         <div className="stagger grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {debrief.criteria.map((c) => (
-            <CriterionCard key={c.id} c={c} onJump={() => focusAt(c.at)} />
+            <CriterionCard
+              key={c.id}
+              c={c}
+              onJump={() => focusAt(c.at)}
+              onRetry={(() => {
+                const i = canRetry ? turnForCriterion(turns, c) : null;
+                return i === null ? undefined : () => openRetry(i, c.better);
+              })()}
+            />
           ))}
         </div>
       </section>
+
+      <EmotionPanel data={emotion} buyerName={persona.firstName} durationSec={m.durationSec} onJump={focusTurn} />
 
       <section className="stagger mt-5 grid gap-5 lg:grid-cols-[1.2fr_1fr]">
         <div className="card p-5">
@@ -154,13 +234,39 @@ export function DebriefView({ call, debrief }: { call: CallRecord; debrief: Debr
                   refs.current[i] = el;
                 }}
               >
-                <TurnRow t={t} active={selected === i} onClick={t.role === "rep" ? () => setSelected(i) : undefined} name={persona.firstName} />
+                <TurnRow
+                  t={t}
+                  active={selected === i}
+                  onClick={t.role === "rep" ? () => setSelected(i) : undefined}
+                  name={persona.firstName}
+                  onRetry={canRetry && t.role === "rep" && typeof t.delta === "number" && t.delta < 0 ? () => openRetry(i) : undefined}
+                />
               </li>
             ))}
           </ul>
         </div>
       </section>
+      {owner && call.status === "done" && (
+        <section className="mt-5">
+          <ShareCall
+            callId={call.id}
+            published={call.isSample}
+            total={debrief.total}
+            buyer={`${persona.name}, ${persona.title}`}
+            eligibleHint={
+              call.mode !== "voice"
+                ? "Only voice calls can be published as a replay."
+                : debrief.source !== "ai"
+                  ? "Only calls scored by the AI judge can be published as a replay."
+                  : null
+            }
+          />
+        </section>
+      )}
       {!call.isSample && call.status === "done" && <FeedbackForm callId={call.id} />}
+      {canRetry && (
+        <RetrySheet open={retryOpen} onClose={() => setRetryOpen(false)} callId={call.id} turns={turns} target={retry} buyerName={persona.firstName} />
+      )}
     </div>
   );
 }
@@ -175,7 +281,23 @@ function Stat({ label, value, hint, warn }: { label: string; value: string; hint
   );
 }
 
-function CriterionCard({ c, onJump }: { c: Criterion; onJump: () => void }) {
+function RetryButton({ onClick, className = "" }: { onClick: () => void; className?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      className={`inline-flex items-center gap-1.5 rounded-full border border-acc-d/30 bg-acc-d/10 px-2.5 py-1 text-xs font-semibold text-acc transition hover:border-acc-d/60 hover:bg-acc-d/20 ${className}`}
+    >
+      <RotateCcw size={12} aria-hidden="true" />
+      Retry this line
+    </button>
+  );
+}
+
+function CriterionCard({ c, onJump, onRetry }: { c: Criterion; onJump: () => void; onRetry?: () => void }) {
   const pct = (c.score / 20) * 100;
   return (
     <div className="card flex flex-col p-5">
@@ -203,11 +325,31 @@ function CriterionCard({ c, onJump }: { c: Criterion; onJump: () => void }) {
           {c.better}
         </div>
       )}
+      {onRetry && (
+        <div className="mt-auto pt-3">
+          <RetryButton onClick={onRetry} />
+        </div>
+      )}
     </div>
   );
 }
 
-export function TurnRow({ t, active, onClick, name, dark = false }: { t: Turn; active?: boolean; onClick?: () => void; name: string; dark?: boolean }) {
+export function TurnRow({
+  t,
+  active,
+  onClick,
+  name,
+  dark = false,
+  onRetry,
+}: {
+  t: Turn;
+  active?: boolean;
+  onClick?: () => void;
+  name: string;
+  dark?: boolean;
+  /** Shows "Retry this line" (debrief only). */
+  onRetry?: () => void;
+}) {
   const rep = t.role === "rep";
   const base = dark
     ? rep
@@ -233,6 +375,7 @@ export function TurnRow({ t, active, onClick, name, dark = false }: { t: Turn; a
       </div>
       <div>{t.text}</div>
       {rep && t.reason && <div className={`mt-1.5 text-xs ${dark ? "text-mute-d" : "text-mute"}`}>{t.reason}</div>}
+      {rep && onRetry && <RetryButton onClick={onRetry} className="mt-2" />}
     </div>
   );
 }

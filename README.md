@@ -53,7 +53,7 @@ Use an ignored `.env.local` or Vercel project environment settings. Never commit
 | `GPT_LIVE_MODEL` | `gpt-live-1`; this is the Live API, not the Realtime API. |
 | `AI_PROVIDER` | `auto` prefers the OpenAI project key, otherwise Gateway; `openai` or `gateway` pins the backend. |
 | `AI_GATEWAY_API_KEY` | Optional Gateway credential; Vercel can also supply OIDC in request context. |
-| `JUDGE_MODEL` / `DEBRIEF_MODEL` | Defaults: `openai/gpt-4.1-mini` / `openai/gpt-4.1`. |
+| `JUDGE_MODEL` / `DEBRIEF_MODEL` | Defaults: `openai/gpt-4.1-mini` (judge, the one the eval was run on) / `openai/gpt-6-luna` (debrief, falls back to `DEBRIEF_FALLBACK_MODEL`, default `openai/gpt-4.1`). |
 | `BUYER_MODEL` | Text actor; default `openai/gpt-4.1-mini`. |
 | `AI_DISABLED` | `1` explicitly forces the offline rubric. |
 | `EVAL_KEY` | Protects live evaluation, production probe and feedback export; send in an Authorization bearer header. |
@@ -122,7 +122,7 @@ Production verification on 2026-11-14 at [zimran-callback.vercel.app](https://zi
 
 Voice startup has a total deadline, partial resources are cleaned up, repeated caption events are deduplicated and late work cannot update a later call. One provider session attempt per call is claimed durably in Neon. Buyer farewell handling and the five-minute browser timer request graceful closure before releasing media.
 
-GPT-Live has no configurable five-minute provider limit. An untrusted client can ignore a browser timer; authoritative server closure needs a trusted sideband controller. The existing A free-call quota is checked at start and charged at completion, so simultaneous call reservation and IP limits still require server-side hardening.
+GPT-Live has no configurable five-minute provider limit. An untrusted client can ignore a browser timer; authoritative server closure needs a trusted sideband controller. A free call is reserved atomically when it starts (`POST /api/calls`), so parallel starts cannot exceed `FREE_CALL_LIMIT`; a call that later fails to connect still uses its free slot. `POST /api/calls` and `POST /api/voice/session` are also limited per IP (`x-forwarded-for`) to `RATE_LIMIT_PER_HOUR` (default 10) requests per hour per route, shared through Neon; the limiter fails open if its table is unavailable, and an attacker rotating IPs or cookies is not stopped by it.
 
 Three actual vacancy summaries in `evals/jobs/real-postings.json` were tested against cloud generation and the generated customer roles/products were reviewed locally and on production. Five synthetic text-call debriefs were checked in both environments; they do not substitute for five real voice calls. Real voice auditions, a genuine published recording and 20–50 testers still require human participation. Production runtime logs and protected paired eval require the owner's Vercel access and securely configured EVAL_KEY. Buyer captions and timestamps originate on the client, so saved data is not forensic proof of human speech. No real calls, customer quotes or user counts are fabricated. The optional warmup is omitted.
 

@@ -127,7 +127,7 @@ export function BuyerPicker({ buyers }: { buyers: Record<SalesRole, PersonaPubli
 
       <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {list.map((p, i) => {
-          const first = p.name.split(" ")[0];
+          const first = p.firstName;
           const recommended = p.id === "jessica-hr";
           const Icon = themeIcon(p);
           return (

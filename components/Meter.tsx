@@ -1,4 +1,5 @@
 // [A] Live interest meter, -100..+100.
+import { MoodChip } from "./BuyerMood";
 
 export function interestLabel(score: number): string {
   if (score >= 50) return "Hot";
@@ -12,14 +13,17 @@ export function signed(n: number): string {
   return n > 0 ? `+${n}` : `${n}`;
 }
 
-export function Meter({ score, delta, reason, compact = false }: { score: number; delta?: number | null; reason?: string | null; compact?: boolean }) {
+export function Meter({ score, delta, reason, compact = false, mood = false }: { score: number; delta?: number | null; reason?: string | null; compact?: boolean; /** show the buyer mood chip (live call) */ mood?: boolean }) {
   const half = Math.min(100, Math.abs(score)) / 2;
   const positive = score >= 0;
   return (
     <div className="w-full" role="meter" aria-valuemin={-100} aria-valuemax={100} aria-valuenow={score} aria-label="Buyer interest">
       <div className="mb-2 flex items-end justify-between gap-3">
         <div>
-          <div className="text-xs font-semibold uppercase tracking-wider text-mute-d">Buyer interest</div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wider text-mute-d">Buyer interest</span>
+            {mood && <MoodChip score={score} className="px-2 py-0.5 text-[11px]" />}
+          </div>
           <div className={`display ${compact ? "text-3xl" : "text-5xl"} tabular-nums`}>
             {signed(score)}
             <span className="ml-2 align-middle text-base font-semibold text-mute-d">{interestLabel(score)}</span>

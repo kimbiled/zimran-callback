@@ -51,7 +51,7 @@ const STEPS = [
 ];
 
 const PROOF = [
-  { icon: Target, to: 10, suffix: "/10", text: "strong vs. weak calls ranked correctly by the judge" },
+  { icon: Target, to: 10, suffix: "/10", text: "strong vs. weak calls ranked correctly by the judge, on 10 scripted call pairs" },
   { icon: ShieldCheck, to: 100, suffix: "%", text: "of meter moves backed by a quote you actually said" },
   { icon: Code, to: 4, suffix: " metrics", text: "talk ratio, questions, fillers, monologue: counted in code" },
 ];
@@ -110,7 +110,7 @@ export default function Home() {
           </Reveal>
           <Reveal index={3} className="mt-8 flex flex-wrap items-center justify-center gap-3" id="hero-cta">
             <Link href={FIRST_CALL} data-magnetic className="cta-halo btn btn-accent btn-cta px-7 py-4 text-base">
-              <PhoneCall size={18} aria-hidden="true" /> Start a free call · 2 min
+              <PhoneCall size={18} aria-hidden="true" /> Start a free call · 3 min
             </Link>
             <Link href="/sample" className="btn btn-ghost group px-6 py-4">
               See a sample debrief <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" aria-hidden="true" />
@@ -140,7 +140,7 @@ export default function Home() {
           <div className="pointer-events-none absolute -left-24 -top-20 hidden opacity-60 lg:block" aria-hidden="true">
             <Orb size={180} className="float" />
           </div>
-          <div className="pointer-events-none absolute -inset-x-10 -bottom-10 top-10 -z-10 rounded-[40px] bg-[radial-gradient(60%_60%_at_50%_40%,rgb(255_92_38/0.22),transparent)] blur-2xl" aria-hidden="true" />
+          <div className="pointer-events-none absolute inset-x-0 sm:-inset-x-10 -bottom-10 top-10 -z-10 rounded-[40px] bg-[radial-gradient(60%_60%_at_50%_40%,rgb(255_92_38/0.22),transparent)] blur-2xl" aria-hidden="true" />
           <div className="tilt relative">
             <HeroDemo />
             {/* floating 3D chips */}

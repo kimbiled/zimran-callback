@@ -86,7 +86,7 @@ export function ReplayPlayer({ replay }: { replay: RecordedReplay }) {
           <ol className="mt-4 max-h-[65vh] space-y-3 overflow-y-auto pr-1" aria-live="polite" aria-relevant="additions">
             {frame.turns.map((turn, index) => <li key={index} ref={index === frame.turns.length - 1 ? latestTurn : undefined} className={`rise rounded-2xl p-4 ${turn.role === "rep" ? "bg-acc-d/10" : "bg-white/5"}`}>
               <div className="flex items-center justify-between gap-3 text-xs font-semibold uppercase tracking-wide text-mute">
-                <span>{turn.role === "rep" ? "Candidate" : replay.persona.name.split(" ")[0]} · {mmss(turn.start)}</span>
+                <span>{turn.role === "rep" ? "Candidate" : replay.persona.firstName} · {mmss(turn.start)}</span>
                 {typeof turn.delta === "number" && <span className={turn.delta >= 0 ? "text-good" : "text-bad"}>{turn.delta > 0 ? "+" : ""}{turn.delta}</span>}
               </div>
               <p className="mt-2 text-sm leading-relaxed">{turn.text}</p>

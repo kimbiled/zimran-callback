@@ -3,6 +3,7 @@
 // browser ⇄ OpenAI directly; this route is only the handshake.
 import { z } from "zod";
 import { db } from "@/lib/server/db";
+import { rateLimit } from "@/lib/server/rate-limit";
 import { sessionId } from "@/lib/server/session";
 import { bad, json, readJson } from "@/lib/server/validate";
 import { createGptLiveSession, gptLiveEnabled, LiveSessionError } from "@/lib/voice/server";
@@ -17,6 +18,8 @@ const Body = z.object({
 
 export async function POST(req: Request) {
   if (!gptLiveEnabled()) return bad("GPT-Live is not configured", 503);
+  const limited = await rateLimit(req, "voice-session");
+  if (limited) return limited;
   const parsed = Body.safeParse(await readJson(req));
   if (!parsed.success) return bad("Invalid request");
   const { callId, sdp } = parsed.data;

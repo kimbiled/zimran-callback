@@ -10,9 +10,9 @@ vi.mock("@/lib/server/session", () => ({
 vi.mock("@/lib/server/db", () => ({ db: () => ({
   getCall: async () => fixture.call,
   getOrCreateSession: async (id: string) => ({ id, plan: "free", callsUsed: 0 }),
+  reserveCall: async () => { fixture.uses++; return { ok: true, callsUsed: fixture.uses, plan: "free" }; },
   createCall: async (input: Pick<CallRecord, "id" | "sessionId" | "persona" | "mode">) => { Object.assign(fixture.call!, input); },
   finishCall: async (_id: string, turns: Turn[], debrief: CallRecord["debrief"]) => { fixture.finishes++; Object.assign(fixture.call!, { status: "done", turns, debrief }); },
-  incrementCalls: async () => { fixture.uses++; },
 }) }));
 import { POST as judge } from "@/app/api/judge/route";
 import { POST as debrief } from "@/app/api/debrief/route";
@@ -35,7 +35,9 @@ describe("authenticated B routes", () => {
     expect(fixture.call!.persona.role).toBe("ae");
     expect(body.voice.openingLine).toContain("25 minutes");
     expect(body.persona.goal).toContain("tailored demo");
+    expect(body.callsLeft).toBe(2);
     expect((await startCall(request({ personaId: "jessica-hr", mode: "text" }))).status).toBe(200);
+    expect(fixture.uses).toBe(2);
     expect(fixture.call!.persona.role).toBe("sdr");
     expect(fixture.call!.persona.openingLine).toBe(getPersona("jessica-hr")!.openingLine);
   });
@@ -62,7 +64,8 @@ describe("authenticated B routes", () => {
     expect(fixture.call!.turns.filter(t => t.role === "rep").every(t => t.judgeSource === "heuristic")).toBe(true);
     expect(report.painsFound).not.toContain("turnover");
     expect((await debrief(request(input))).status).toBe(200);
-    expect(fixture.finishes).toBe(1); expect(fixture.uses).toBe(1);
+    // Usage is reserved when the call starts (POST /api/calls); completion never counts it again.
+    expect(fixture.finishes).toBe(1); expect(fixture.uses).toBe(0);
   });
   it("rejects rewritten history, reversed timestamps and buyer-only judging", async () => {
     const callId = fixture.call!.id;
@@ -71,12 +74,12 @@ describe("authenticated B routes", () => {
     expect((await judge(request({ callId, turns: [{ ...turns[1], start: 9, end: 1 }] }))).status).toBe(400);
     expect((await judge(request({ callId, turns: [turns[0]] }))).status).toBe(400);
   });
-  it("finalizes concurrent requests and accounts for usage once", async () => {
+  it("finalizes concurrent requests once without counting usage again", async () => {
     const callId = fixture.call!.id;
     await judge(request({ callId, turns }));
     const results = await Promise.all([debrief(request({ callId, turns })), debrief(request({ callId, turns }))]);
     expect(results.map(r => r.status)).toEqual([200, 200]);
-    expect(fixture.finishes).toBe(1); expect(fixture.uses).toBe(1);
+    expect(fixture.finishes).toBe(1); expect(fixture.uses).toBe(0);
   });
   it("recovers missing judgments after a dropped browser request", async () => {
     const input = [...turns, { role: "buyer" as const, text: "It takes four weeks", start: 6, end: 8 }, { role: "rep" as const, text: "How many hours does training take?", start: 9, end: 12 }];

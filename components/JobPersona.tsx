@@ -93,7 +93,7 @@ export function JobPersona({ role }: { role: SalesRole }) {
           </div>
           <div className="mt-3 flex gap-2">
             <Link href={href} className="btn btn-accent btn-cta flex-1" style={{ ["--sheen-delay" as string]: "0.4s" }}>
-              Call {result.public.name.split(" ")[0]}
+              Call {result.public.firstName}
             </Link>
             <button className="btn btn-ghost" onClick={() => setResult(null)}>
               Redo

@@ -2,7 +2,14 @@
 import { createOpenAI } from "@ai-sdk/openai";
 
 export const JUDGE_MODEL = process.env.JUDGE_MODEL || "openai/gpt-4.1-mini";
-export const DEBRIEF_MODEL = process.env.DEBRIEF_MODEL || "openai/gpt-4.1";
+// Debrief runs on the fast GPT-6 Luna tier; if it errors, the same request is retried on the fallback.
+export const DEBRIEF_MODEL = process.env.DEBRIEF_MODEL || "openai/gpt-6-luna";
+export const DEBRIEF_FALLBACK_MODEL = process.env.DEBRIEF_FALLBACK_MODEL || "openai/gpt-4.1";
+
+/** Newer reasoning-style models (gpt-5+, gpt-6, o-series) may reject `temperature`. */
+export function acceptsTemperature(name: string): boolean {
+  return !/(^|\/)(gpt-[5-9]|o\d)/.test(name);
+}
 
 export function aiConfiguration(): { enabled: boolean; provider: "openai" | "gateway" | null; reason?: string } {
   if (process.env.AI_DISABLED === "1") return { enabled: false, provider: null, reason: "disabled" };

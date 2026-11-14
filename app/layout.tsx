@@ -14,9 +14,30 @@ const sans = Geist({ subsets: ["latin"], variable: "--font-geist", display: "swa
 const mono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono", display: "swap" });
 
 export const metadata: Metadata = {
+  // Absolute base for OG/Twitter image URLs: explicit site URL, else Vercel's production domain.
+  metadataBase: (() => {
+    const fallback = "https://zimran-callback.vercel.app";
+    const vercel = process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "";
+    try {
+      return new URL(process.env.NEXT_PUBLIC_SITE_URL || vercel || fallback);
+    } catch {
+      return new URL(fallback);
+    }
+  })(),
   title: "Callback · Practice the cold call before the interview",
   description:
     "Call an AI buyer with hidden pains and real objections, watch the interest meter react to every sentence, and get a debrief with quotes and better lines. No sign-up.",
+  openGraph: {
+    type: "website",
+    siteName: "Callback",
+    title: "Callback · Practice the cold call before the interview",
+    description: "Call an AI buyer with hidden pains and real objections. Live interest meter, debrief with quotes and better lines. No sign-up.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Callback · Practice the cold call before the interview",
+    description: "Call an AI buyer with hidden pains and real objections. Live interest meter, debrief with quotes and better lines. No sign-up.",
+  },
 };
 
 export const viewport: Viewport = { themeColor: "#05050a", viewportFit: "cover", colorScheme: "dark" };

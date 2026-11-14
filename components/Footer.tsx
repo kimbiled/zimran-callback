@@ -10,6 +10,8 @@ const COLUMNS: { title: string; links: [string, string][] }[] = [
       ["Practice a call", "/#buyers"],
       ["Sample debrief", "/sample"],
       ["Your progress", "/progress"],
+      ["Daily 60-second drill", "/drill"],
+      ["Objection library", "/objections"],
       ["Pricing", "/pricing"],
     ],
   },

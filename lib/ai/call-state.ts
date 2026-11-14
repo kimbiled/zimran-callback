@@ -97,23 +97,19 @@ export function finishCallOnce(call: CallRecord, build: () => Promise<{ turns: T
     const current = await db().getCall(call.id);
     if (current?.status === "done" && current.debrief) return current.debrief;
     const { turns, debrief } = await build();
+    // Usage is not counted here: POST /api/calls reserves the call against the free limit when it
+    // starts (prevents parallel-call abuse), so completion must never count it a second time.
     if (sql) {
-      // Atomic completion and quota increment, including requests on different Vercel workers.
-      const rows = await sql`with completed as (
-        update calls set status = 'done', ended_at = now(), turns = ${JSON.stringify(turns)}::jsonb,
+      // Atomic completion, including requests on different Vercel workers.
+      const rows = await sql`update calls set status = 'done', ended_at = now(), turns = ${JSON.stringify(turns)}::jsonb,
           debrief = ${JSON.stringify(debrief)}::jsonb, final_score = ${debrief.finalScore}, total = ${debrief.total}
-        where id = ${call.id}::uuid and status = 'live' returning session_id, debrief
-      ), accounted as (
-        update sessions set calls_used = calls_used + ${turns.some(t => t.role === "rep") ? 1 : 0}
-        where id in (select session_id from completed) returning id
-      ) select debrief from completed`;
+        where id = ${call.id}::uuid and status = 'live' returning debrief`;
       if (rows[0]) return rows[0].debrief as Debrief;
       const saved = (await db().getCall(call.id))?.debrief;
       if (!saved) throw new Error("Call completion failed");
       return saved;
     }
     await db().finishCall(call.id, turns, debrief);
-    if (turns.some(t => t.role === "rep")) await db().incrementCalls(call.sessionId);
     return debrief;
   })();
   finalizations.set(call.id, task);

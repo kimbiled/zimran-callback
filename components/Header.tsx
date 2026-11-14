@@ -13,9 +13,11 @@ export function Header() {
           {[
             ["/#buyers", "Practice"],
             ["/progress", "Progress"],
+            ["/drill", "Daily drill"],
+            ["/objections", "Objections"],
             ["/pricing", "Pricing"],
           ].map(([href, label]) => (
-            <Link key={href} href={href} className="flex min-h-11 items-center rounded-full px-2.5 text-mute transition-colors hover:bg-white/5 hover:text-fg sm:px-3.5">
+            <Link key={href} href={href} className={`${href === "/progress" ? "hidden sm:flex" : href === "/drill" || href === "/objections" ? "hidden lg:flex" : "flex"} min-h-11 items-center rounded-full px-2.5 text-mute transition-colors hover:bg-white/5 hover:text-fg sm:px-3.5`}>
               {label}
             </Link>
           ))}

@@ -703,6 +703,7 @@ export function toPublic(p: Persona): PersonaPublic {
   return {
     id: p.id,
     name: p.name,
+    firstName: p.firstName,
     title: p.title,
     company: p.company,
     industry: p.industry,

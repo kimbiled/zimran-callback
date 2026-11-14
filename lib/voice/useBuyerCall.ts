@@ -1,12 +1,19 @@
 "use client";
 // [B] GPT-Live voice and independent text buyer. Voice never waits for scoring.
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { CallMode, CallStart, Debrief, JudgeResponse, TimelinePoint, Turn, VoiceProvider } from "../types";
 import { interestUpdate } from "./brief";
 import { initialInterest } from "../ai/interest";
 import { TranscriptClock } from "./transcript";
 import { GptLiveCall } from "./gptLive";
 import { trackEvent } from "../analytics";
+import { finishTimings, JUDGE_DRAIN_MS, timingSummary, waitAtMost } from "./finish-timing";
+
+function mark(name: string) {
+  try { performance.clearMarks(name); performance.mark(name); } catch { /* Timing marks are diagnostics only. */ }
+  return performance.now();
+}
 
 export type CallPhase = "idle" | "connecting" | "live" | "finishing" | "done" | "error";
 export function useBuyerCall(opts: { onDone: (debrief: Debrief) => void }) {
@@ -37,6 +44,10 @@ export function useBuyerCall(opts: { onDone: (debrief: Debrief) => void }) {
   const textQueueRef = useRef<Promise<void>>(Promise.resolve());
   const onDoneRef = useRef(opts.onDone);
   onDoneRef.current = opts.onDone;
+  const router = useRouter();
+  const routerRef = useRef(router);
+  routerRef.current = router;
+  const endClickRef = useRef<number | null>(null);
   const now = () => Math.min(300, Math.max(0, (performance.now() - t0.current) / 1000));
 
   const judge = useCallback((index: number) => {
@@ -84,9 +95,11 @@ export function useBuyerCall(opts: { onDone: (debrief: Debrief) => void }) {
     finishedRef.current = true; liveRef.current = false; setPhase("finishing");
     const call = callRef.current; const run = runRef.current;
     if (!call) return;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    await Promise.race([queueRef.current, new Promise(r => { timer = setTimeout(r, 10_000); })]); clearTimeout(timer);
+    const endClick = endClickRef.current ?? mark("cb:end-click");
+    // Unjudged turns are scored server-side with the labelled rubric, so never hold the user long.
+    const judgeDrained = await waitAtMost(queueRef.current, JUDGE_DRAIN_MS);
     if (run !== runRef.current) return;
+    const drainedAt = mark("cb:judge-drained");
     abortRef.current.abort();
     try {
       const response = await fetch("/api/debrief", {
@@ -96,8 +109,14 @@ export function useBuyerCall(opts: { onDone: (debrief: Debrief) => void }) {
       if (!response.ok) throw new Error(`debrief ${response.status}`);
       const d = await response.json() as Debrief;
       if (run !== runRef.current) return;
+      const timings = finishTimings({ endClick, judgeDrained: drainedAt, debriefResponse: mark("cb:debrief-response") });
       setPhase("done");
-      try { trackEvent("call_finished", { mode: modeRef.current, durationSec: Math.round(now()), source: d.source, outcome: d.outcome }); } catch { /* Analytics cannot break the call. */ }
+      try {
+        trackEvent("call_finished", { mode: modeRef.current, durationSec: Math.round(now()), source: d.source, outcome: d.outcome });
+        trackEvent("debrief_ready", { ...timings, source: d.source, judgeDrained, mode: modeRef.current });
+        performance.measure("cb:debrief-ready", "cb:end-click", "cb:debrief-response");
+        if (process.env.NODE_ENV === "development") console.info(timingSummary(timings, d.source, judgeDrained));
+      } catch { /* Analytics and timing marks cannot break the call. */ }
       onDoneRef.current(d);
     } catch {
       if (run === runRef.current) { setError("Couldn't build the debrief. Please try again."); setPhase("error"); }
@@ -109,7 +128,7 @@ export function useBuyerCall(opts: { onDone: (debrief: Debrief) => void }) {
     finishedRef.current = true; liveRef.current = false; gptRef.current?.teardown(); gptRef.current = null;
     abortRef.current.abort();
     abortRef.current = new AbortController(); clockRef.current = new TranscriptClock();
-    callRef.current = call; modeRef.current = mode; finishedRef.current = false; liveRef.current = false; textQueueRef.current = Promise.resolve();
+    callRef.current = call; modeRef.current = mode; endClickRef.current = null; finishedRef.current = false; liveRef.current = false; textQueueRef.current = Promise.resolve();
     turnsRef.current = []; scoreRef.current = initialInterest(call.persona.difficulty);
     timelineRef.current = [{ t: 0, score: scoreRef.current }]; painsRef.current = new Set(); queueRef.current = Promise.resolve();
     setTurns([]); setScore(scoreRef.current); setTimeline(timelineRef.current); setVerdict(null); setPainsFound([]); setElapsed(0); setError(null); setPhase("connecting"); setProvider(mode === "voice" ? "gpt-live" : "text"); setIsSpeaking(false);
@@ -123,6 +142,8 @@ export function useBuyerCall(opts: { onDone: (debrief: Debrief) => void }) {
         if (previous === 1) trackEvent("second_call", { mode });
       } catch { /* Browser storage or Analytics may be unavailable. */ }
     };
+    // The debrief route renders its loading shell instantly once prefetched (dynamic data is not cached).
+    try { routerRef.current.prefetch(`/debrief/${call.callId}`); } catch { /* Prefetch is an optimization only. */ }
     if (mode === "text") {
       connected(); addTurn("buyer", call.voice.openingLine); return;
     }
@@ -151,6 +172,7 @@ export function useBuyerCall(opts: { onDone: (debrief: Debrief) => void }) {
     const gpt = gptRef.current;
     const run = runRef.current;
     if (!liveRef.current) { finishedRef.current = true; void gpt?.end(); setPhase("idle"); return; }
+    endClickRef.current ??= mark("cb:end-click");
     setPhase("finishing");
     if (modeRef.current === "voice" && gpt) void gpt.end().then(() => { if (run === runRef.current) return finish(); });
     else void finish();

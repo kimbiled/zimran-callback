@@ -68,14 +68,13 @@ Score five criteria, each from 0 to 20:
 - next_step: proposed a concrete meeting with a time and attendees
 
 For each criterion:
-- quote: an EXACT quote from the rep in the transcript that best shows the score (empty string if the rep never did this)
-- at: the second of the call for that quote (from the timestamp), -1 if there is no quote
+- quote: the shortest EXACT quote from one rep turn (3-20 words, copied verbatim) that best shows the score; empty string if the rep never did this
 - better: a ready-to-say line the rep could have used instead, one or two sentences
 
 Also:
 - summary: two or three sentences on what worked and what got in the way
 - outcome: "meeting" only if the buyer clearly agreed to a meeting or next step, otherwise "no_meeting"
-- topFixes: the three most important fixes for the next call, one action each
+- topFixes: the three most important fixes for the next call, one short action each
 - Use complete ready-to-say lines, without bracketed placeholders such as [Your Name] or [Company].
 - Never invent product capabilities, guaranteed savings or performance percentages. Reuse only facts and quantities present in the profile/transcript; frame an unverified benefit as a question or hypothesis, not a sales claim.
 - A product category does not establish CRM integrations or customer results. Never claim Salesforce integration, automatic syncing or "we've helped similar clinics" unless verified product facts explicitly establish it; ask what the buyer needs instead.

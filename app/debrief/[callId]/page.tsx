@@ -1,10 +1,15 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/server/db";
 import { isUuid } from "@/lib/server/session";
 import { DebriefView } from "@/components/DebriefView";
+import type { CallRank } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
+
+/** Same cookie lib/server/session.ts sets. Read-only here: Server Components cannot set cookies. */
+const SESSION_COOKIE = "cb_sid";
 
 export default async function DebriefPage({ params }: { params: Promise<{ callId: string }> }) {
   const { callId } = await params;
@@ -22,6 +27,19 @@ export default async function DebriefPage({ params }: { params: Promise<{ callId
       </div>
     );
   }
+  const sid = (await cookies()).get(SESSION_COOKIE)?.value;
+  const owner = isUuid(sid) && sid === call.sessionId;
+
+  // Real counts only; a ranking failure must never break the debrief.
+  let rank: CallRank | null = null;
+  if (call.status === "done" && call.total !== null) {
+    try {
+      rank = { ...(await db().rank(call.personaId, call.total)), includesSelf: !call.isSample };
+    } catch (error) {
+      console.error("rank failed", error instanceof Error ? error.message : error);
+    }
+  }
+
   const { sessionId: _s, ...safe } = call;
-  return <DebriefView call={{ ...safe, sessionId: "" }} debrief={call.debrief} />;
+  return <DebriefView call={{ ...safe, sessionId: "" }} debrief={call.debrief} rank={rank} owner={owner} />;
 }

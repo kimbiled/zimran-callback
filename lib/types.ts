@@ -62,6 +62,8 @@ export type SalesRole = "sdr" | "ae";
 export type PersonaPublic = {
   id: string;
   name: string;
+  /** How the buyer is addressed on buttons ("Call Nina", not "Call Dr.") */
+  firstName: string;
   title: string;
   company: string;
   industry: string;
@@ -103,6 +105,10 @@ export type Metrics = {
   fillersPer100: number;
   longestMonologueSec: number;
   repWords: number;
+  /** Rep words per rep speaking minute; null for text calls (timestamps are estimated there). Optional: older saved debriefs lack it. */
+  wordsPerMinute?: number | null;
+  /** Longest gap between the end of a buyer turn and the start of the rep's answer; null for text calls. */
+  longestPauseBeforeAnswerSec?: number | null;
 };
 
 export type CriterionId = "opening" | "discovery" | "objections" | "value" | "next_step";
@@ -136,6 +142,10 @@ export type Debrief = {
   painsFound: string[];
   painsMissed: string[];
   source: "ai" | "heuristic";
+  /** Coach hints shown during the call (counted on the server) */
+  hintsUsed?: number;
+  /** Points taken off `total` for those hints (3 each, never below 0) */
+  hintPenalty?: number;
 };
 
 export type CallMode = "voice" | "text";
@@ -183,3 +193,29 @@ export type ProgressItem = {
 };
 
 export type Plan = "free" | "sprint" | "offer" | "gym";
+
+/** POST /api/retry: re-judge one rep line in its original context. Stateless. */
+export type RetryRequest = { callId: string; turnIndex: number; text: string };
+
+export type RetryResponse = {
+  delta: number;
+  /** Buyer interest after the retried line */
+  score: number;
+  reason: string;
+  evidenceQuote: string;
+  source: "ai" | "heuristic";
+  /** The original line's saved delta (null when it was never scored) */
+  original: number | null;
+};
+
+/** Where a finished call's total sits among real practice calls with the same buyer. */
+export type CallRank = {
+  /** calls with a strictly lower total */
+  below: number;
+  /** calls with a strictly higher total */
+  above: number;
+  /** finished, scored, non-sample calls with this buyer */
+  n: number;
+  /** whether `n` already counts the call being ranked */
+  includesSelf?: boolean;
+};

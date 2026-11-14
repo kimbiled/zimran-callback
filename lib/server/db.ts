@@ -5,11 +5,17 @@ import { neon } from "@neondatabase/serverless";
 import type { CallMode, CallRecord, Debrief, Persona, Plan, Turn } from "../types";
 
 export type SessionRow = { id: string; plan: Plan; callsUsed: number };
+export type Reservation = { ok: boolean; callsUsed: number; plan: Plan };
 
 interface Store {
   kind: "neon" | "memory";
   getOrCreateSession(id: string): Promise<SessionRow>;
-  incrementCalls(id: string): Promise<void>;
+  /**
+   * Atomically count one call against the session when it starts (creating the session if needed).
+   * Free sessions are refused once `limit` calls are used; paid plans are counted but never refused.
+   * Counting at start (not at debrief) stops parallel calls from all passing the limit check.
+   */
+  reserveCall(id: string, limit: number): Promise<Reservation>;
   setPlan(id: string, plan: Plan): Promise<void>;
   createCall(c: { id: string; sessionId: string; persona: Persona; mode: CallMode; isSample?: boolean }): Promise<void>;
   getCall(id: string): Promise<CallRecord | null>;
@@ -17,6 +23,35 @@ interface Store {
   listCalls(sessionId: string, limit?: number): Promise<CallRecord[]>;
   publishSample(id: string, sessionId: string): Promise<boolean>;
   listSamples(limit?: number): Promise<CallRecord[]>;
+  /** Where `total` sits among finished, scored, non-sample calls with this buyer (real counts). */
+  rank(personaId: string, total: number): Promise<{ below: number; above: number; n: number }>;
+  /** Daily drill streak as of `today` (UTC YYYY-MM-DD). A streak not extended yesterday or today reads as 0. */
+  getStreak(id: string, today: string): Promise<StreakInfo>;
+  /** Count a completed drill: +1 if the last one was yesterday, unchanged if today, else 1. */
+  recordWarmup(id: string, today: string): Promise<StreakInfo>;
+}
+
+// ---- Daily drill streak (pure helpers, shared by both stores) ----
+export type StreakInfo = { streak: number; lastWarmup: string | null; doneToday: boolean };
+
+/** UTC calendar date, YYYY-MM-DD. */
+export function utcToday(now: Date = new Date()): string {
+  return now.toISOString().slice(0, 10);
+}
+
+function prevUtcDay(ymd: string): string {
+  return new Date(Date.parse(`${ymd}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
+}
+
+export function nextStreak(streak: number, lastWarmup: string | null, today: string): number {
+  if (lastWarmup === today) return Math.max(1, streak);
+  if (lastWarmup === prevUtcDay(today)) return streak + 1;
+  return 1;
+}
+
+export function streakInfo(streak: number, lastWarmup: string | null, today: string): StreakInfo {
+  const alive = lastWarmup === today || lastWarmup === prevUtcDay(today);
+  return { streak: alive ? streak : 0, lastWarmup, doneToday: lastWarmup === today };
 }
 
 const SCHEMA = [
@@ -94,9 +129,17 @@ function neonStore(url: string): Store {
       const r = rows[0];
       return { id: String(r.id), plan: r.plan as Plan, callsUsed: Number(r.calls_used) };
     },
-    async incrementCalls(id) {
+    async reserveCall(id, limit) {
       await init();
-      await sql`update sessions set calls_used = calls_used + 1 where id = ${id}::uuid`;
+      await sql`insert into sessions (id) values (${id}::uuid) on conflict (id) do nothing`;
+      // Single conditional update: concurrent reservations serialize on the row lock, so at most
+      // `limit` free calls ever succeed.
+      const rows = (await sql`update sessions set calls_used = calls_used + 1
+        where id = ${id}::uuid and (plan <> 'free' or calls_used < ${limit})
+        returning calls_used, plan`) as Row[];
+      if (rows[0]) return { ok: true, callsUsed: Number(rows[0].calls_used), plan: rows[0].plan as Plan };
+      const current = (await sql`select calls_used, plan from sessions where id = ${id}::uuid`) as Row[];
+      return { ok: false, callsUsed: Number(current[0]?.calls_used ?? limit), plan: (current[0]?.plan as Plan) ?? "free" };
     },
     async setPlan(id, plan) {
       await init();
@@ -141,6 +184,37 @@ function neonStore(url: string): Store {
         order by started_at desc limit ${Math.max(1, Math.min(12, Math.floor(limit)))}`) as Row[];
       return rows.map(rowToCall);
     },
+    async rank(personaId, total) {
+      await init();
+      const rows = (await sql`select
+          count(*) filter (where total < ${total})::int as below,
+          count(*) filter (where total > ${total})::int as above,
+          count(*)::int as n
+        from calls
+        where persona_id = ${personaId} and status = 'done' and total is not null and is_sample = false`) as Row[];
+      return { below: Number(rows[0]?.below ?? 0), above: Number(rows[0]?.above ?? 0), n: Number(rows[0]?.n ?? 0) };
+    },
+    async getStreak(id, today) {
+      await init();
+      const rows = (await sql`select streak, to_char(last_warmup, 'YYYY-MM-DD') as last_warmup
+        from sessions where id = ${id}::uuid`) as Row[];
+      const r = rows[0];
+      return streakInfo(Number(r?.streak ?? 0), r?.last_warmup ? String(r.last_warmup) : null, today);
+    },
+    async recordWarmup(id, today) {
+      await init();
+      await sql`insert into sessions (id) values (${id}::uuid) on conflict (id) do nothing`;
+      // One conditional update, so two drills submitted at once can't both add a day.
+      const rows = (await sql`update sessions set
+          streak = case
+            when last_warmup = ${today}::date then greatest(streak, 1)
+            when last_warmup = ${today}::date - 1 then streak + 1
+            else 1 end,
+          last_warmup = ${today}::date
+        where id = ${id}::uuid
+        returning streak, to_char(last_warmup, 'YYYY-MM-DD') as last_warmup`) as Row[];
+      return streakInfo(Number(rows[0]?.streak ?? 1), String(rows[0]?.last_warmup ?? today), today);
+    },
   };
 }
 
@@ -154,9 +228,13 @@ function memoryStore(): Store {
       if (!m.sessions.has(id)) m.sessions.set(id, { id, plan: "free", callsUsed: 0 });
       return { ...m.sessions.get(id)! };
     },
-    async incrementCalls(id) {
-      const s = m.sessions.get(id);
-      if (s) s.callsUsed += 1;
+    async reserveCall(id, limit) {
+      // No await between read and write, so this is atomic within the process.
+      let s = m.sessions.get(id);
+      if (!s) m.sessions.set(id, (s = { id, plan: "free", callsUsed: 0 }));
+      if (s.plan === "free" && s.callsUsed >= limit) return { ok: false, callsUsed: s.callsUsed, plan: s.plan };
+      s.callsUsed += 1;
+      return { ok: true, callsUsed: s.callsUsed, plan: s.plan };
     },
     async setPlan(id, plan) {
       const s = m.sessions.get(id);
@@ -202,7 +280,32 @@ function memoryStore(): Store {
         .sort((a, b) => b.startedAt.localeCompare(a.startedAt))
         .slice(0, Math.max(1, Math.min(12, Math.floor(limit))));
     },
+    async rank(personaId, total) {
+      const scored = [...m.calls.values()].filter(c => c.personaId === personaId && c.status === "done" && c.total != null && !c.isSample);
+      return {
+        below: scored.filter(c => c.total! < total).length,
+        above: scored.filter(c => c.total! > total).length,
+        n: scored.length,
+      };
+    },
+    async getStreak(id, today) {
+      const s = streaks().get(id);
+      return streakInfo(s?.streak ?? 0, s?.lastWarmup ?? null, today);
+    },
+    async recordWarmup(id, today) {
+      const map = streaks();
+      const s = map.get(id);
+      const next = { streak: nextStreak(s?.streak ?? 0, s?.lastWarmup ?? null, today), lastWarmup: today };
+      map.set(id, next);
+      return streakInfo(next.streak, next.lastWarmup, today);
+    },
   };
+}
+
+/** Memory streaks live beside __cbMem so the session rows keep their existing shape. */
+function streaks(): Map<string, { streak: number; lastWarmup: string | null }> {
+  const g = globalThis as unknown as { __cbStreaks?: Map<string, { streak: number; lastWarmup: string | null }> };
+  return (g.__cbStreaks ??= new Map());
 }
 
 let store: Store | null = null;

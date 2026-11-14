@@ -35,7 +35,7 @@ export function StickyCta({ href, watch = "hero-cta", hideOn = "buyers" }: { hre
       aria-hidden={!show}
     >
       <Link href={href} tabIndex={show ? 0 : -1} className="btn btn-accent btn-cta min-h-12 w-full">
-        <PhoneIcon /> Start a free call · 2 min
+        <PhoneIcon /> Start a free call · 3 min
       </Link>
       <p className="mt-1.5 text-center text-xs text-mute-d">3 free calls · no sign-up · no mic? use text</p>
     </div>

@@ -1,12 +1,13 @@
-// [A] Start a call: check the free limit, write to the DB, return what the voice layer needs.
-// A call only counts against the free limit once it gets a debrief (see /api/debrief),
-// so a failed connection never burns a free call.
+// [A] Start a call: rate-limit the IP, reserve the call against the free limit, write to the DB,
+// return what the voice layer needs. A call counts against the free limit when it starts (an atomic
+// reservation), not when it gets a debrief, so parallel calls cannot all slip past the limit.
 import { z } from "zod";
 import { ALLOWED_VOICE_IDS, getPersona, toPublic, VOICES } from "@/lib/personas";
 import { PersonaSchema } from "@/lib/ai/persona-gen";
 import { applyRole } from "@/lib/roles";
 import { MAX_CALL_SECONDS, voiceProvider } from "@/lib/voice/server";
 import { db } from "@/lib/server/db";
+import { rateLimit } from "@/lib/server/rate-limit";
 import { FREE_CALL_LIMIT, sessionId } from "@/lib/server/session";
 import { bad, json, readJson } from "@/lib/server/validate";
 import type { CallStart, Persona } from "@/lib/types";
@@ -23,6 +24,8 @@ const Body = z.object({
 });
 
 export async function POST(req: Request) {
+  const limited = await rateLimit(req, "calls");
+  if (limited) return limited;
   const parsed = Body.safeParse(await readJson(req));
   if (!parsed.success) return bad("Invalid request");
   const { personaId, customPersona, mode, role } = parsed.data;
@@ -42,8 +45,8 @@ export async function POST(req: Request) {
 
   const sid = await sessionId();
   const store = db();
-  const session = await store.getOrCreateSession(sid);
-  if (session.plan === "free" && session.callsUsed >= FREE_CALL_LIMIT) {
+  const session = await store.reserveCall(sid, FREE_CALL_LIMIT);
+  if (!session.ok) {
     return json(
       { error: "limit", message: `You've used your ${FREE_CALL_LIMIT} free calls. Pick a plan to keep practicing.` },
       402,

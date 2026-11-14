@@ -1,6 +1,6 @@
 // [B] Call metrics are computed in code, not by the model, so they can't be hallucinated.
 
-import type { Metrics, Turn } from "./types";
+import type { CallMode, CallRank, Metrics, Turn } from "./types";
 
 /** Filler words and phrases; multi-word ones are matched as phrases. */
 export const FILLERS = ["um", "uh", "erm", "you know", "basically", "kind of", "sort of", "i mean", "literally"];
@@ -37,7 +37,46 @@ function speechSeconds(turns: Turn[]): number {
   return total;
 }
 
-export function callMetrics(turns: Turn[]): Metrics {
+/** Healthy conversational pace for a cold call, words per minute. */
+export const HEALTHY_WPM = { min: 130, max: 160 } as const;
+
+/** Rep words per minute of rep speaking time. Null for text calls or when there is no measurable speech. */
+export function wordsPerMinute(turns: Turn[], mode: CallMode = "voice"): number | null {
+  if (mode !== "voice") return null;
+  const rep = turns.filter((t) => t.role === "rep");
+  const seconds = speechSeconds(rep);
+  const count = rep.reduce((n, t) => n + words(t.text).length, 0);
+  if (seconds < 1 || count === 0) return null;
+  return Math.round(count / (seconds / 60));
+}
+
+/** The longest silence between a buyer turn ending and the rep's next turn starting (voice only). */
+export function longestPauseBeforeAnswer(turns: Turn[], mode: CallMode = "voice"): { sec: number; turnIndex: number } | null {
+  if (mode !== "voice") return null;
+  const order = turns.map((t, i) => ({ t, i })).sort((a, b) => a.t.start - b.t.start || a.i - b.i);
+  let best: { sec: number; turnIndex: number } | null = null;
+  for (let k = 1; k < order.length; k++) {
+    const prev = order[k - 1].t;
+    const cur = order[k];
+    if (prev.role !== "buyer" || cur.t.role !== "rep") continue;
+    const gap = Math.max(0, cur.t.start - prev.end);
+    if (!best || gap > best.sec) best = { sec: gap, turnIndex: cur.i };
+  }
+  return best && { sec: Math.round(best.sec * 10) / 10, turnIndex: best.turnIndex };
+}
+
+/** "Better than 72% of 40 practice calls with Mike", or "#2 of 3 calls with Mike" for small samples. Real counts only. */
+export function rankLine(rank: CallRank, firstName: string): string | null {
+  const self = rank.includesSelf ?? true;
+  const others = Math.max(0, rank.n - (self ? 1 : 0));
+  const total = others + 1;
+  if (others <= 0) return `Your first scored practice call with ${firstName}`;
+  if (total < 5) return `#${Math.min(total, rank.above + 1)} of ${total} calls with ${firstName}`;
+  const pct = Math.round((Math.min(rank.below, others) / others) * 100);
+  return `Better than ${pct}% of ${others} practice calls with ${firstName}`;
+}
+
+export function callMetrics(turns: Turn[], mode: CallMode = "voice"): Metrics {
   const rep = turns.filter((t) => t.role === "rep");
   const repTime = speechSeconds(rep);
   const allTime = repTime + speechSeconds(turns.filter(t => t.role === "buyer")) || 1;
@@ -61,5 +100,7 @@ export function callMetrics(turns: Turn[]): Metrics {
     fillersPer100: repWords.length ? +((fillers / repWords.length) * 100).toFixed(1) : 0,
     longestMonologueSec: Math.round(longest),
     repWords: repWords.length,
+    wordsPerMinute: wordsPerMinute(turns, mode),
+    longestPauseBeforeAnswerSec: longestPauseBeforeAnswer(turns, mode)?.sec ?? null,
   };
 }

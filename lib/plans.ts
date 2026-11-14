@@ -23,7 +23,7 @@ export const PLANS: PlanInfo[] = [
     period: "no sign-up",
     recurring: false,
     description: "Try a real call before you pay anything.",
-    features: ["3 calls, up to 5 minutes each", "4 ready-made buyers", "Live interest meter and full debrief"],
+    features: ["3 calls, up to 5 minutes each", "All 13 ready-made buyers", "Live interest meter and full debrief"],
   },
   {
     id: "sprint",

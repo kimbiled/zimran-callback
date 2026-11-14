@@ -6,12 +6,19 @@ import type { Criterion, CriterionId, Debrief, Persona, TimelinePoint, Turn } fr
 import { callMetrics } from "../metrics";
 import { clamp, normalize, quoteIsGrounded } from "./guards";
 import { criterionAdvice, criterionTitle, heuristicCriteria, proposesNextStep } from "./heuristics";
-import { aiEnabled, DEBRIEF_MODEL, recordAiFailure, recordAiSuccess, resolveModel, withTimeout } from "./model";
+import { acceptsTemperature, aiEnabled, DEBRIEF_FALLBACK_MODEL, DEBRIEF_MODEL, recordAiFailure, recordAiSuccess, resolveModel, withTimeout } from "./model";
 import { DEBRIEF_INSTRUCTIONS, personaCard, transcript } from "./prompts";
+
+/**
+ * Output cap. A typical debrief is ~650 output tokens (measured on production, Nov 2026); the schema's
+ * longest realistic answer (1200-char summary, five short quotes and lines, three fixes) is ~1300.
+ * The cap only bounds a runaway answer: latency follows the tokens actually generated.
+ */
+export const DEBRIEF_MAX_OUTPUT_TOKENS = 1600;
 
 export const CRITERIA_ORDER: CriterionId[] = ["opening", "discovery", "objections", "value", "next_step"];
 
-const DebriefSchema = z.object({
+export const DebriefSchema = z.object({
   summary: z.string().min(1).max(1200),
   outcome: z.enum(["meeting", "no_meeting"]),
   criteria: z.array(
@@ -19,7 +26,7 @@ const DebriefSchema = z.object({
       id: z.enum(["opening", "discovery", "objections", "value", "next_step"]),
       score: z.number().int().min(0).max(20),
       quote: z.string(),
-      at: z.number(),
+      // No `at`: groundCriteria takes the timestamp from the rep turn that contains the quote.
       better: z.string(),
     }),
   ).length(5).refine(list => new Set(list.map(c => c.id)).size === 5, "Five unique criteria required"),
@@ -102,16 +109,20 @@ export async function buildDebrief(args: {
   }
 
   let ai: z.infer<typeof DebriefSchema> | null = null;
-  if (aiEnabled()) {
+  // Primary model first (GPT-6 Luna: fast); if it errors (unknown model, rejected parameter,
+  // timeout), the same request goes to the fallback once before the offline rubric.
+  const models = [...new Set([DEBRIEF_MODEL, DEBRIEF_FALLBACK_MODEL])];
+  for (const [attempt, modelName] of models.entries()) {
+    if (!aiEnabled() || ai) break;
     try {
       const { output } = await withTimeout(
         (signal) => generateText({
-          model: resolveModel(DEBRIEF_MODEL),
+          model: resolveModel(modelName),
           instructions: DEBRIEF_INSTRUCTIONS,
-          temperature: 0.2,
+          ...(acceptsTemperature(modelName) ? { temperature: 0.2 } : {}),
           abortSignal: signal,
           maxRetries: 0,
-          maxOutputTokens: 3000,
+          maxOutputTokens: DEBRIEF_MAX_OUTPUT_TOKENS,
           output: Output.object({ schema: DebriefSchema, name: "call_debrief" }),
           prompt: [
             personaCard(persona),
@@ -120,18 +131,18 @@ export async function buildDebrief(args: {
             `Transcript with [m:ss] timestamps and interest changes:\n${transcript(turns, true)}`,
           ].join("\n\n"),
         }),
-        25000,
+        attempt === 0 ? 15000 : 20000,
       );
       ai = output;
-      recordAiSuccess("debrief", DEBRIEF_MODEL);
+      recordAiSuccess("debrief", modelName);
     } catch (e) {
-      recordAiFailure("debrief", e, DEBRIEF_MODEL);
+      recordAiFailure("debrief", e, modelName);
     }
   }
 
   if (ai) {
     const criteria = groundCriteria(
-      ai.criteria.map((c) => ({ ...c, title: criterionTitle(c.id) })),
+      ai.criteria.map((c) => ({ ...c, at: -1, title: criterionTitle(c.id) })),
       turns,
       persona,
     );
