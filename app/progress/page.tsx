@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { CriterionId, Plan, ProgressItem } from "@/lib/types";
 import { ScoreChart } from "@/components/ScoreChart";
+import { ProgressSkeleton } from "@/components/Skeletons";
+import { PhoneIcon } from "@/components/Header";
 
 type Data = { plan: Plan; callsUsed: number; callsLeft: number | null; items: ProgressItem[] };
 
@@ -28,7 +30,7 @@ export default function ProgressPage() {
   }, []);
 
   if (error) return <div className="mx-auto max-w-6xl px-5 py-16 text-mute">Couldn't load your progress. Refresh the page.</div>;
-  if (!data) return <div className="mx-auto max-w-6xl px-5 py-16 text-mute">Loading…</div>;
+  if (!data) return <ProgressSkeleton />;
 
   const items = data.items.filter((i) => typeof i.total === "number");
   const best = items.reduce((m, i) => Math.max(m, i.total ?? 0), 0);
@@ -45,7 +47,7 @@ export default function ProgressPage() {
         <div>
           <h1 className="display text-5xl">Your progress</h1>
           <p className="mt-2 text-mute">
-            Plan: <strong className="text-ink">{data.plan === "free" ? "Free" : data.plan}</strong>
+            Plan: <strong className="text-fg">{data.plan === "free" ? "Free" : data.plan}</strong>
             {data.callsLeft !== null && ` · ${data.callsLeft} free call${data.callsLeft === 1 ? "" : "s"} left`}
           </p>
         </div>
@@ -55,12 +57,12 @@ export default function ProgressPage() {
       </div>
 
       {items.length === 0 ? (
-        <div className="card mt-8 p-10 text-center">
+        <div className="card rise mt-8 p-10 text-center">
           <h2 className="display text-2xl">No calls yet</h2>
-          <p className="mt-2 text-mute">Make your first call and your scores will show up here.</p>
-          <div className="mt-5 flex justify-center gap-2">
-            <Link href="/#buyers" className="btn btn-primary">
-              Make a call
+          <p className="mt-2 text-mute">Your first call takes about 3 minutes. Your scores and skill trends show up here.</p>
+          <div className="mt-5 flex flex-wrap justify-center gap-2">
+            <Link href="/call/jessica-hr?role=sdr" className="btn btn-accent btn-cta">
+              <PhoneIcon /> Call Jessica · easy, ~3 min
             </Link>
             <Link href="/sample" className="btn btn-ghost">
               Sample debrief
@@ -104,7 +106,7 @@ export default function ProgressPage() {
           </div>
           <div className="card mt-5 overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-paper text-left text-xs uppercase tracking-wider text-mute">
+              <thead className="bg-white/5 text-left text-xs uppercase tracking-wider text-mute">
                 <tr>
                   <th className="p-3">#</th>
                   <th className="p-3">Buyer</th>

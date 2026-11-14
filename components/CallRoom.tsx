@@ -12,6 +12,7 @@ import { applyRole } from "@/lib/roles";
 import { Meter } from "./Meter";
 import { TurnRow } from "./DebriefView";
 import { PhoneIcon } from "./Header";
+import { Sk } from "./Skeletons";
 
 export default function CallRoom({ persona, role }: { persona: PersonaPublic | null; role: SalesRole }) {
   return <Room initial={persona} role={role} />;
@@ -60,6 +61,16 @@ function Room({ initial, role }: { initial: PersonaPublic | null; role: SalesRol
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
   }, [call.turns.length]);
+
+  // Mic blocked: switch to text right away instead of leaving the rep at a dead end.
+  const [micFallback, setMicFallback] = useState(false);
+  useEffect(() => {
+    if (mode !== "voice" || call.phase !== "error" || !call.error) return;
+    if (!/permission|denied|notallowed|microphone|mic\b/i.test(call.error)) return;
+    call.reset();
+    setMode("text");
+    setMicFallback(true);
+  }, [call, mode]);
 
   // Warn before closing the tab mid-call.
   useEffect(() => {
@@ -133,7 +144,7 @@ function Room({ initial, role }: { initial: PersonaPublic | null; role: SalesRol
   if (!live) {
     // Briefing (and errors)
     return (
-      <div className="mx-auto grid max-w-6xl gap-6 px-5 py-10 lg:grid-cols-[1.2fr_1fr]">
+      <div className="mx-auto grid max-w-6xl gap-6 px-5 pb-32 pt-8 sm:py-10 lg:grid-cols-[1.2fr_1fr] lg:pb-10">
         <div className="rise">
           <div className="text-sm font-semibold uppercase tracking-wider text-acc">Your call brief</div>
           <h1 className="display mt-2 text-4xl sm:text-5xl">
@@ -160,18 +171,25 @@ function Room({ initial, role }: { initial: PersonaPublic | null; role: SalesRol
         </div>
 
         <div className="rise">
-          <div className="rounded-3xl bg-ink p-6 text-paper">
+          <div className="rounded-3xl bg-panel p-6 text-fg">
             <div className="text-sm text-mute-d">Choose how to call</div>
             <div className="mt-3 grid grid-cols-2 gap-2">
               <ModeButton active={mode === "voice"} onClick={() => setMode("voice")} title="Voice" note="Recommended, uses your mic" />
               <ModeButton active={mode === "text"} onClick={() => setMode("text")} title="Text" note="No mic? Type instead" />
             </div>
-            <button className="btn btn-accent mt-5 w-full py-4 text-lg" disabled={starting} onClick={() => begin(mode)}>
-              <PhoneIcon size={18} /> {starting ? "Dialing…" : `Call ${firstName}`}
+            <button className="btn btn-accent btn-cta mt-5 w-full py-4 text-lg" disabled={starting} onClick={() => begin(mode)}>
+              {starting ? <Spinner /> : <PhoneIcon size={18} />} {starting ? `Dialing ${firstName}…` : `Call ${firstName}`}
             </button>
             <div className="mt-3 text-center text-xs text-mute-d">
-              Calls are capped at 5 minutes.{callsLeft !== null ? ` Free calls left: ${callsLeft}.` : ""}
+              {mode === "voice" ? "Your browser will ask for the microphone. We keep the transcript, not the audio. " : ""}
+              Up to 5 minutes.{" "}
+              {callsLeft === null ? <span className="skeleton inline-block h-3 w-24 translate-y-0.5 rounded" aria-hidden="true" /> : `Free calls left: ${callsLeft}.`}
             </div>
+            {micFallback && (
+              <div className="mt-4 rounded-xl bg-white/10 p-3 text-sm" role="status">
+                Mic blocked, so we switched you to text. Same buyer, same score.
+              </div>
+            )}
             {(call.error || startError) && (
               <div className="mt-4 rounded-xl bg-bad/20 p-3 text-sm text-bad-d">
                 {startError ?? call.error}
@@ -190,8 +208,29 @@ function Room({ initial, role }: { initial: PersonaPublic | null; role: SalesRol
             )}
           </div>
           <p className="mt-4 text-center text-sm text-mute">
-            Not ready? <Link href="/sample" className="font-semibold text-ink underline-offset-4 hover:underline">Watch a sample call and debrief</Link>
+            Not ready? <Link href="/sample" className="font-semibold text-fg underline-offset-4 hover:underline">Watch a sample call and debrief</Link>
           </p>
+        </div>
+
+        {/* Mobile: the call action is always one tap away, above the fold. */}
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-panel/95 px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 text-fg backdrop-blur lg:hidden">
+          <div className="mx-auto flex max-w-xl items-center gap-2">
+            <div className="flex shrink-0 rounded-full bg-white/10 p-1 text-xs font-semibold" role="group" aria-label="Call mode">
+              {(["voice", "text"] as const).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setMode(m)}
+                  aria-pressed={mode === m}
+                  className={`min-h-9 rounded-full px-3 capitalize transition ${mode === m ? "bg-white/5 text-fg" : "text-mute-d"}`}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+            <button className="btn btn-accent btn-cta min-h-11 flex-1 py-3" disabled={starting} onClick={() => begin(mode)}>
+              {starting ? <Spinner /> : <PhoneIcon />} {starting ? "Dialing…" : `Call ${firstName}`}
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -200,12 +239,12 @@ function Room({ initial, role }: { initial: PersonaPublic | null; role: SalesRol
   // Live call
   const v = call.verdict;
   return (
-    <div className="min-h-[calc(100vh-57px)] bg-ink text-paper">
+    <div className="min-h-[calc(100vh-57px)] bg-panel text-fg">
       <div className="mx-auto grid max-w-6xl gap-6 px-5 py-8 lg:grid-cols-[1fr_1.1fr]">
         <div className="space-y-6">
           <div className="flex items-center gap-4">
             <div
-              className={`grid h-16 w-16 shrink-0 place-items-center rounded-full bg-ink-2 text-2xl font-bold ${call.isSpeaking ? "speaking" : ""}`}
+              className={`grid h-16 w-16 shrink-0 place-items-center rounded-full bg-panel-2 text-2xl font-bold ${call.isSpeaking ? "speaking" : ""}`}
               aria-hidden="true"
             >
               {firstName[0]}
@@ -231,29 +270,58 @@ function Room({ initial, role }: { initial: PersonaPublic | null; role: SalesRol
             </div>
           </div>
 
-          <div className="rounded-3xl bg-ink-2 p-6">
+          <div className="rounded-3xl bg-panel-2 p-6">
             <Meter score={call.score} delta={v?.delta ?? null} reason={v?.reason ?? (role === "ae" ? "Thank them, confirm the time and set the agenda." : "Start with your name and the reason for your call.")} />
           </div>
 
-          <div className="rounded-3xl bg-ink-2 p-5 text-sm text-mute-d">
-            <div className="font-semibold text-paper">Goal: {persona.goal}</div>
+          <div className="rounded-3xl bg-panel-2 p-5 text-sm text-mute-d">
+            <div className="font-semibold text-fg">Goal: {persona.goal}</div>
             <div className="mt-1">You're selling {persona.product}.</div>
             <div className="mt-1">
-              Pains found: <span className="font-semibold text-paper">{call.painsFound.length}</span> of 3
+              Pains found:{" "}
+              <span key={call.painsFound.length} className="pop inline-block font-semibold text-fg">
+                {call.painsFound.length}
+              </span>{" "}
+              of 3
             </div>
           </div>
 
-          <button className="btn btn-danger w-full py-4 text-lg" disabled={call.phase !== "live"} onClick={() => call.end()}>
-            End call and get debrief
-          </button>
+          {call.phase === "finishing" || call.phase === "done" ? (
+            <div className="rounded-3xl bg-panel-2 p-5" role="status" aria-live="polite">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-fg">Building your debrief…</span>
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-acc-d border-t-transparent" aria-hidden="true" />
+              </div>
+              <ul className="mt-3 space-y-1 text-xs text-mute-d">
+                <li>✓ Transcript saved</li>
+                <li>… Judge is checking every quote</li>
+                <li>… Writing better lines for you</li>
+              </ul>
+              <Sk dark className="mt-4 h-10 w-28" />
+              <Sk dark className="mt-3 h-3 w-full" />
+              <Sk dark className="mt-2 h-3 w-4/5" />
+            </div>
+          ) : (
+            <button className="btn btn-danger w-full py-4 text-lg" disabled={call.phase !== "live"} onClick={() => call.end()}>
+              End call and get debrief
+            </button>
+          )}
         </div>
 
-        <div className="flex min-h-[420px] flex-col rounded-3xl bg-ink-2 p-4">
+        <div className="flex min-h-[420px] flex-col rounded-3xl bg-panel-2 p-4">
           <div className="mb-2 px-1 text-xs font-semibold uppercase tracking-wider text-mute-d">Live transcript</div>
           <div ref={listRef} className="flex-1 space-y-2 overflow-y-auto pr-1" style={{ maxHeight: "60vh" }}>
-            {call.turns.length === 0 && <div className="p-6 text-center text-sm text-mute-d">{call.phase === "connecting" ? "Connecting…" : "Waiting for the buyer to pick up…"}</div>}
+            {call.turns.length === 0 && (
+              <div className="space-y-2" role="status" aria-live="polite">
+                <p className="px-1 pb-1 text-sm text-mute-d">
+                  {call.phase === "connecting" ? `Connecting to ${firstName}… allow the mic if asked.` : `Waiting for ${firstName} to pick up…`}
+                </p>
+                <Sk dark className="h-16 w-4/5 rounded-2xl" />
+                <Sk dark className="ml-auto h-12 w-3/5 rounded-2xl" />
+              </div>
+            )}
             {call.turns.map((t, i) => (
-              <div key={i} className="rise">
+              <div key={i} className={t.role === "rep" ? "in-right" : "in-left"}>
                 <TurnRow t={t} name={firstName} dark />
               </div>
             ))}
@@ -271,7 +339,7 @@ function Room({ initial, role }: { initial: PersonaPublic | null; role: SalesRol
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 placeholder={`Say something to ${firstName}…`}
-                className="flex-1 rounded-full border border-white/10 bg-ink px-4 py-3 text-paper outline-none placeholder:text-mute-d focus:border-acc-d"
+                className="flex-1 rounded-full border border-white/10 bg-panel px-4 py-3 text-fg outline-none placeholder:text-mute-d focus:border-acc-d"
                 disabled={call.phase !== "live"}
                 autoFocus
               />
@@ -288,11 +356,15 @@ function Room({ initial, role }: { initial: PersonaPublic | null; role: SalesRol
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
+function Spinner() {
+  return <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" />;
+}
+
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="grid grid-cols-[130px_1fr] gap-3 border-b border-line pb-3">
+    <div className="grid grid-cols-[96px_1fr] gap-3 border-b border-line pb-3 sm:grid-cols-[130px_1fr]">
       <dt className="text-sm text-mute">{label}</dt>
-      <dd className="font-medium">{value}</dd>
+      <dd className="text-sm font-medium sm:text-base">{value}</dd>
     </div>
   );
 }

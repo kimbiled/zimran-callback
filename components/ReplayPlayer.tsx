@@ -55,7 +55,7 @@ export function ReplayPlayer({ replay }: { replay: RecordedReplay }) {
 
       <div className="grid items-start gap-6 lg:grid-cols-[1fr_1.15fr]">
         <div className="space-y-5">
-          <div className="rounded-3xl bg-ink p-6 text-paper">
+          <div className="rounded-3xl bg-panel p-6 text-fg">
             <Meter score={frame.score} delta={frame.delta} reason={frame.reason} />
           </div>
           <div className="card p-5">
@@ -68,7 +68,7 @@ export function ReplayPlayer({ replay }: { replay: RecordedReplay }) {
               <span className="ml-auto font-mono text-sm tabular-nums" aria-live="off">{mmss(frame.at)} / {mmss(replay.durationSec)}</span>
             </div>
             <label className="mt-5 block text-sm font-semibold" htmlFor="replay-position">Replay position</label>
-            <input id="replay-position" type="range" min={0} max={replay.durationSec} step={0.1} value={position} onChange={event => seek(Number(event.target.value))} className="mt-2 w-full accent-orange-600" aria-valuetext={`${mmss(frame.at)} of ${mmss(replay.durationSec)}`} />
+            <input id="replay-position" type="range" min={0} max={replay.durationSec} step={0.1} value={position} onChange={event => seek(Number(event.target.value))} className="mt-2 w-full accent-[#ff5c26]" aria-valuetext={`${mmss(frame.at)} of ${mmss(replay.durationSec)}`} />
             <p className="mt-2 text-xs text-mute">Move the slider or select a chart point to seek. Interest changes at each recorded verdict.</p>
           </div>
           <div className="card p-5">
@@ -84,10 +84,10 @@ export function ReplayPlayer({ replay }: { replay: RecordedReplay }) {
         <section className="card p-5" aria-labelledby="replay-transcript-title">
           <h2 id="replay-transcript-title" className="font-semibold">Recorded transcript</h2>
           <ol className="mt-4 max-h-[65vh] space-y-3 overflow-y-auto pr-1" aria-live="polite" aria-relevant="additions">
-            {frame.turns.map((turn, index) => <li key={index} ref={index === frame.turns.length - 1 ? latestTurn : undefined} className={`rise rounded-2xl p-4 ${turn.role === "rep" ? "bg-orange-50" : "bg-stone-100"}`}>
+            {frame.turns.map((turn, index) => <li key={index} ref={index === frame.turns.length - 1 ? latestTurn : undefined} className={`rise rounded-2xl p-4 ${turn.role === "rep" ? "bg-acc-d/10" : "bg-white/5"}`}>
               <div className="flex items-center justify-between gap-3 text-xs font-semibold uppercase tracking-wide text-mute">
                 <span>{turn.role === "rep" ? "Candidate" : replay.persona.name.split(" ")[0]} · {mmss(turn.start)}</span>
-                {typeof turn.delta === "number" && <span className={turn.delta >= 0 ? "text-green-700" : "text-red-700"}>{turn.delta > 0 ? "+" : ""}{turn.delta}</span>}
+                {typeof turn.delta === "number" && <span className={turn.delta >= 0 ? "text-good" : "text-bad"}>{turn.delta > 0 ? "+" : ""}{turn.delta}</span>}
               </div>
               <p className="mt-2 text-sm leading-relaxed">{turn.text}</p>
               {turn.reason && <p className="mt-2 text-xs text-mute">{turn.reason}</p>}

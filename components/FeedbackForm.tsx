@@ -79,7 +79,7 @@ export function FeedbackForm({ callId }: { callId: string }) {
         </fieldset>
         <div>
           <label htmlFor={`${id}-quote`} className="text-sm font-semibold">3. What would you tell another candidate? <span className="font-normal text-mute">Optional</span></label>
-          <textarea id={`${id}-quote`} className="mt-2 min-h-24 w-full rounded-xl border border-line bg-paper p-3 text-sm outline-none focus:border-acc" value={quote} maxLength={500} required={quoteConsent} disabled={saving} onChange={event => { setQuote(event.target.value); changed(); }} aria-describedby={`${id}-quote-note`} />
+          <textarea id={`${id}-quote`} className="mt-2 min-h-24 w-full rounded-xl border border-line bg-white/5 p-3 text-sm outline-none focus:border-acc" value={quote} maxLength={500} required={quoteConsent} disabled={saving} onChange={event => { setQuote(event.target.value); changed(); }} aria-describedby={`${id}-quote-note`} />
           <label className="mt-2 flex items-start gap-2 text-sm">
             <input type="checkbox" className="mt-1" checked={quoteConsent} disabled={saving} onChange={event => { setQuoteConsent(event.target.checked); changed(); }} />
             <span>Callback may quote this comment publicly in its demo or pitch. This permission is optional.</span>

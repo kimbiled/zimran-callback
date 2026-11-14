@@ -39,19 +39,19 @@ export function ScoreChart({
     <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="Buyer interest over the call">
       {ticks.map((v) => (
         <g key={v}>
-          <line x1={PAD.l} x2={W - PAD.r} y1={y(v)} y2={y(v)} stroke={v === 0 && yMin < 0 ? "#9aa0b4" : "#e3dfd6"} strokeDasharray={v === 0 && yMin < 0 ? "4 4" : undefined} />
-          <text x={PAD.l - 6} y={y(v) + 4} textAnchor="end" fontSize="10" fill="#4a4f5e">
+          <line x1={PAD.l} x2={W - PAD.r} y1={y(v)} y2={y(v)} stroke={v === 0 && yMin < 0 ? "#6b6b85" : "#262634"} strokeDasharray={v === 0 && yMin < 0 ? "4 4" : undefined} />
+          <text x={PAD.l - 6} y={y(v) + 4} textAnchor="end" fontSize="10" fill="#9090a8">
             {v > 0 && yMin < 0 ? `+${v}` : v}
           </text>
         </g>
       ))}
       {tTicks.map((t) => (
-        <text key={t} x={x(t)} y={H - 6} textAnchor="middle" fontSize="10" fill="#4a4f5e">
+        <text key={t} x={x(t)} y={H - 6} textAnchor="middle" fontSize="10" fill="#9090a8">
           {xTick ? xTick(t) : `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`}
         </text>
       ))}
-      {area && <path d={area} fill="#ff6b3d" opacity="0.08" />}
-      <path d={path} fill="none" stroke="#c2410c" strokeWidth="2.5" strokeLinejoin="round" />
+      {area && <path d={area} fill="#ff5c26" opacity="0.14" />}
+      <path d={path} fill="none" stroke="#ff7a3d" strokeWidth="2.5" strokeLinejoin="round" />
       {points.map((p, i) =>
         i === 0 && !showFirst ? null : (
           <g key={i} onClick={() => onSelect?.(i)} style={{ cursor: onSelect ? "pointer" : undefined }}>
@@ -60,8 +60,8 @@ export function ScoreChart({
               cx={x(p.t)}
               cy={y(p.score)}
               r={selected === i ? 6.5 : 4.5}
-              fill={selected === i ? "#12141f" : "#fff"}
-              stroke={p.score >= (points[i - 1]?.score ?? p.score) ? "#15803d" : "#b91c1c"}
+              fill={selected === i ? "#ff5c26" : "#0c0c14"}
+              stroke={p.score >= (points[i - 1]?.score ?? p.score) ? "#4ade80" : "#fb7185"}
               strokeWidth="2.5"
             >
               {labels && <title>{labels(i)}</title>}

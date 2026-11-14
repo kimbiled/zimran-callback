@@ -9,7 +9,10 @@ export function buildBrief(p: Persona): string {
     .map((x) => `- ${x.text}`)
     .join("\n");
   return [
-    `You are ${p.name}, ${p.title} at ${p.company} (${p.industry}).`,
+    // Consumer buyers have a household, not an employer: "Household in Phoenix, AZ" → "living in Phoenix, AZ".
+    /^(household|retired couple) in /i.test(p.company)
+      ? `You are ${p.name}, ${p.title}, ${p.company.replace(/^household in /i, "living in ").replace(/^retired couple in /i, "retired, living in ")} (${p.industry}).`
+      : `You are ${p.name}, ${p.title} at ${p.company} (${p.industry}).`,
     p.background,
     p.role === "ae"
       ? `An account executive is calling for the discovery call you agreed to last week. They sell ${p.product}.`

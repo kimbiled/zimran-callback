@@ -4,6 +4,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { PLANS } from "@/lib/plans";
+import { Reveal } from "./Reveal";
 
 export function PricingCards() {
   const [busy, setBusy] = useState<string | null>(null);
@@ -26,37 +27,52 @@ export function PricingCards() {
   return (
     <>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {PLANS.map((p) => (
-          <div key={p.id} className={`card flex flex-col p-6 ${p.id === "sprint" ? "ring-2 ring-acc-d" : ""}`}>
-            <div className="flex items-center justify-between">
-              <h2 className="font-semibold">{p.name}</h2>
-              {p.id === "sprint" && <span className="chip bg-acc-d/15 text-acc">Most popular</span>}
-              {p.soon && <span className="chip bg-line text-mute">Coming soon</span>}
-            </div>
-            <div className="display mt-3 text-5xl">{p.price}</div>
-            <div className="text-sm text-mute">{p.period}</div>
-            <p className="mt-3 text-sm">{p.description}</p>
-            <ul className="mt-4 flex-1 space-y-2 text-sm">
-              {p.features.map((f) => (
-                <li key={f} className="flex gap-2">
-                  <span className="text-good">✓</span>
-                  {f}
-                </li>
-              ))}
-            </ul>
-            {p.id === "free" ? (
-              <Link href="/#buyers" className="btn btn-ghost mt-6">
-                Start a free call
-              </Link>
-            ) : (
-              <button className={`btn mt-6 ${p.id === "sprint" ? "btn-accent" : "btn-primary"}`} disabled={!!busy || p.soon} onClick={() => buy(p.id)}>
-                {p.soon ? "Coming soon" : busy === p.id ? "Opening checkout…" : `Get ${p.name}`}
-              </button>
-            )}
-          </div>
-        ))}
+        {PLANS.map((p, i) => {
+          const featured = p.id === "sprint";
+          return (
+            <Reveal
+              key={p.id}
+              index={i}
+              className={`card lift relative flex flex-col p-6 ${featured ? "ring-2 ring-acc-d" : ""} ${p.soon ? "opacity-80" : ""}`}
+            >
+              {featured && (
+                <span className="chip absolute -top-3 left-6 whitespace-nowrap bg-acc-d text-bg shadow-sm">Best before an interview</span>
+              )}
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="font-semibold">{p.name}</h2>
+                {p.soon && <span className="chip whitespace-nowrap bg-line text-mute">Coming soon</span>}
+              </div>
+              <div className="num mt-3 text-5xl">{p.price}</div>
+              <div className="text-sm text-mute">{p.period}</div>
+              <p className="mt-3 text-sm">{p.description}</p>
+              <ul className="mt-4 flex-1 space-y-2 text-sm">
+                {p.features.map((f) => (
+                  <li key={f} className="flex gap-2">
+                    <span className="text-good" aria-hidden="true">✓</span>
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              {p.id === "free" ? (
+                <Link href="/call/jessica-hr?role=sdr" className="btn btn-ghost mt-6">
+                  Start a free call
+                </Link>
+              ) : (
+                <button
+                  className={`btn mt-6 ${featured ? "btn-accent btn-cta" : "btn-primary"}`}
+                  disabled={!!busy || p.soon}
+                  aria-busy={busy === p.id}
+                  onClick={() => buy(p.id)}
+                >
+                  {busy === p.id && <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" />}
+                  {p.soon ? "Coming soon" : busy === p.id ? "Opening secure checkout…" : `Get ${p.name}`}
+                </button>
+              )}
+            </Reveal>
+          );
+        })}
       </div>
-      {error && <p className="mt-4 text-sm text-bad">{error}</p>}
+      {error && <p className="mt-4 text-sm text-bad" role="alert">{error}</p>}
     </>
   );
 }

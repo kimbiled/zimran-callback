@@ -3,10 +3,11 @@
 
 import dynamic from "next/dynamic";
 import type { PersonaPublic, SalesRole } from "@/lib/types";
+import { BriefSkeleton } from "./Skeletons";
 
 const CallRoom = dynamic(() => import("./CallRoom"), {
   ssr: false,
-  loading: () => <div className="mx-auto max-w-6xl px-5 py-20 text-mute">Loading the call room…</div>,
+  loading: () => <BriefSkeleton />,
 });
 
 export function CallRoomLoader({ persona, role }: { persona: PersonaPublic | null; role: SalesRole }) {

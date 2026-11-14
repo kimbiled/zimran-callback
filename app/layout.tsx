@@ -1,7 +1,17 @@
 import type { Metadata, Viewport } from "next";
+import { Footer } from "@/components/Footer";
+import { Bricolage_Grotesque, Geist, Geist_Mono } from "next/font/google";
+import { AntdRegistry } from "@ant-design/nextjs-registry";
 import "./globals.css";
 import { Header } from "@/components/Header";
+import { JsReady } from "@/components/JsReady";
+import { Effects } from "@/components/Effects";
+import { AntdProvider } from "@/components/AntdProvider";
 import { Analytics } from "@vercel/analytics/next";
+
+const display = Bricolage_Grotesque({ subsets: ["latin"], axes: ["opsz"], variable: "--font-bricolage", display: "swap" });
+const sans = Geist({ subsets: ["latin"], variable: "--font-geist", display: "swap" });
+const mono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono", display: "swap" });
 
 export const metadata: Metadata = {
   title: "Callback · Practice the cold call before the interview",
@@ -9,25 +19,40 @@ export const metadata: Metadata = {
     "Call an AI buyer with hidden pains and real objections, watch the interest meter react to every sentence, and get a debrief with quotes and better lines. No sign-up.",
 };
 
-export const viewport: Viewport = { themeColor: "#12141f" };
+export const viewport: Viewport = { themeColor: "#05050a", viewportFit: "cover", colorScheme: "dark" };
+
+// Marks the document before first paint so entrance animations can start hidden.
+// Without JS this never runs and every block stays visible. If the app bundle fails
+// to load within 3s (JsReady sets window.__rv), the mark is removed so nothing stays hidden.
+const MARK_JS =
+  "(function(d){d.classList.add('js');setTimeout(function(){if(!window.__rv)d.classList.remove('js')},3000)})(document.documentElement)";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" data-scroll-behavior="smooth" suppressHydrationWarning className={`${display.variable} ${sans.variable} ${mono.variable}`}>
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
-        <link
-          rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap"
-        />
+        <script dangerouslySetInnerHTML={{ __html: MARK_JS }} />
       </head>
       <body className="min-h-screen">
-        <Header />
-        <main>{children}</main>
-        <footer className="mx-auto max-w-6xl px-5 py-10 text-sm text-mute">
-          Callback · The buyer speaks through GPT-Live. A separate judge scores every turn. Metrics are computed in code.
-        </footer>
+        {/* Ambient background: drifting aurora, a fading grid and film grain */}
+        <div className="aurora" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </div>
+        <div className="grid-bg" aria-hidden="true" />
+        <div className="noise" aria-hidden="true" />
+        <div className="scroll-progress" aria-hidden="true" />
+
+        <AntdRegistry>
+          <AntdProvider>
+            <Header />
+            <main>{children}</main>
+            <Footer />
+          </AntdProvider>
+        </AntdRegistry>
+        <Effects />
+        <JsReady />
         <Analytics />
       </body>
     </html>

@@ -44,7 +44,7 @@ export function DebriefView({ call, debrief }: { call: CallRecord; debrief: Debr
   return (
     <div className="mx-auto max-w-6xl px-5 py-8">
       {call.isSample && (
-        <div className="mb-5 rounded-2xl bg-ink px-5 py-3 text-sm text-paper">
+        <div className="mb-5 rounded-2xl bg-panel px-5 py-3 text-sm text-fg">
           Sample debrief. <Link href="/#buyers" className="font-semibold text-acc-d underline-offset-4 hover:underline">Make your own call</Link>, it's free.
         </div>
       )}
@@ -80,14 +80,14 @@ export function DebriefView({ call, debrief }: { call: CallRecord; debrief: Debr
           <ol className="mt-4 space-y-3">
             {debrief.topFixes.map((f, i) => (
               <li key={i} className="flex gap-3 text-[15px] leading-snug">
-                <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-acc-d text-xs font-bold text-ink">{i + 1}</span>
+                <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-acc-d text-xs font-bold text-fg">{i + 1}</span>
                 <span>{f}</span>
               </li>
             ))}
           </ol>
           <div className="mt-6 flex flex-wrap gap-2">
-            <Link href={againHref} className="btn btn-primary">
-              Call {persona.firstName} again
+            <Link href={againHref} className="btn btn-accent btn-cta">
+              {call.isSample ? `Call ${persona.firstName} yourself · free` : `Call ${persona.firstName} again, beat ${debrief.total}`}
             </Link>
             <Link href="/#buyers" className="btn btn-ghost">
               Another buyer
@@ -96,7 +96,7 @@ export function DebriefView({ call, debrief }: { call: CallRecord; debrief: Debr
         </div>
       </section>
 
-      <section className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <section className="stagger mt-5 grid grid-cols-2 gap-3 sm:grid-cols-5">
         <Stat label="Call length" value={fmt(m.durationSec)} />
         <Stat label="You talked" value={`${m.talkRatio}%`} hint="Aim for 40–60%" warn={m.talkRatio > 65} />
         <Stat label="Questions asked" value={String(m.questions)} warn={m.questions < 3} />
@@ -106,14 +106,14 @@ export function DebriefView({ call, debrief }: { call: CallRecord; debrief: Debr
 
       <section className="mt-5">
         <h2 className="display mb-3 text-2xl">Scorecard</h2>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div className="stagger grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {debrief.criteria.map((c) => (
             <CriterionCard key={c.id} c={c} onJump={() => focusAt(c.at)} />
           ))}
         </div>
       </section>
 
-      <section className="mt-5 grid gap-5 lg:grid-cols-[1.2fr_1fr]">
+      <section className="stagger mt-5 grid gap-5 lg:grid-cols-[1.2fr_1fr]">
         <div className="card p-5">
           <div className="flex items-baseline justify-between">
             <h2 className="display text-xl">Interest, turn by turn</h2>
@@ -187,15 +187,15 @@ function CriterionCard({ c, onJump }: { c: Criterion; onJump: () => void }) {
         </span>
       </div>
       <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-line">
-        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: pct >= 70 ? "#15803d" : pct >= 45 ? "#c2410c" : "#b91c1c" }} />
+        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: pct >= 70 ? "#4ade80" : pct >= 45 ? "#ff8a5c" : "#fb7185" }} />
       </div>
       {c.quote ? (
-        <button onClick={onJump} className="mt-4 rounded-xl bg-paper p-3 text-left text-sm leading-snug hover:bg-[#efece4]">
+        <button onClick={onJump} className="mt-4 rounded-xl bg-white/5 p-3 text-left text-sm leading-snug hover:bg-white/10">
           <span className="mr-2 font-mono text-xs text-mute">{c.at >= 0 ? fmt(c.at) : ""}</span>
           <span className="italic">"{c.quote}"</span>
         </button>
       ) : (
-        <p className="mt-4 rounded-xl bg-paper p-3 text-sm text-mute">You didn't do this on the call.</p>
+        <p className="mt-4 rounded-xl bg-white/5 p-3 text-sm text-mute">You didn't do this on the call.</p>
       )}
       {c.better && (
         <div className="mt-3 text-sm leading-snug">
@@ -211,11 +211,11 @@ export function TurnRow({ t, active, onClick, name, dark = false }: { t: Turn; a
   const rep = t.role === "rep";
   const base = dark
     ? rep
-      ? "bg-white/10 text-paper"
-      : "bg-ink-3/60 text-paper/90"
+      ? "bg-white/10 text-fg"
+      : "bg-panel-3/60 text-fg/90"
     : rep
-      ? "bg-paper"
-      : "bg-white border border-line";
+      ? "bg-white/5"
+      : "bg-white/5 border border-line";
   return (
     <div
       onClick={onClick}

@@ -34,14 +34,14 @@ export function Meter({ score, delta, reason, compact = false }: { score: number
           </span>
         )}
       </div>
-      <div className="relative h-4 w-full overflow-hidden rounded-full bg-ink-3">
+      <div className="relative h-4 w-full overflow-hidden rounded-full bg-panel-3">
         <div className="absolute inset-y-0 left-1/2 w-px bg-white/40" />
         <div
           className="absolute inset-y-0 transition-all duration-700 ease-out"
           style={{
             left: positive ? "50%" : `${50 - half}%`,
             width: `${half}%`,
-            background: positive ? "linear-gradient(90deg,#86efac,#22c55e)" : "linear-gradient(90deg,#ef4444,#fca5a5)",
+            background: positive ? "linear-gradient(90deg,#34d399,#a3f7cf)" : "linear-gradient(90deg,#f43f5e,#fda4af)",
           }}
         />
       </div>
@@ -51,7 +51,7 @@ export function Meter({ score, delta, reason, compact = false }: { score: number
         <span>+100</span>
       </div>
       {reason && !compact && (
-        <p key={reason} className="rise mt-3 text-sm text-paper/90">
+        <p key={reason} className="rise mt-3 text-sm text-fg/90">
           {reason}
         </p>
       )}
