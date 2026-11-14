@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { TurnAssembler } from "@/lib/voice/turns";
+import { cleanTranscript, TurnAssembler } from "@/lib/voice/turns";
+import { countQuestions } from "@/lib/metrics";
 import { buyerInstructions } from "@/lib/voice/brief";
 import { gptLiveVoice, voiceProvider } from "@/lib/voice/server";
 import { PERSONAS, VOICES } from "@/lib/personas";
@@ -11,15 +12,32 @@ describe("TurnAssembler (GPT-Live transcript deltas → turns)", () => {
     return { a, out };
   };
 
-  it("closes a turn when the other speaker starts", () => {
+  it("keeps each speaker's text together and emits in start order", () => {
     const { a, out } = collect();
-    a.push("buyer", "Hello, ");
-    a.push("buyer", "this is Jessica.");
-    a.push("rep", "Hi Jessica, ");
-    a.push("rep", " it's Sam from Acme.");
-    expect(out).toEqual([["buyer", "Hello, this is Jessica."]]);
-    a.flush();
-    expect(out[1]).toEqual(["rep", "Hi Jessica, it's Sam from Acme."]);
+    a.push("buyer", "Hello, ", 0);
+    a.push("buyer", "this is Jessica.", 1);
+    a.flush("buyer");
+    a.push("rep", "Hi Jessica, ", 10);
+    a.push("rep", " it's Sam from Acme.", 11);
+    a.flush("rep");
+    expect(out).toEqual([
+      ["buyer", "Hello, this is Jessica."],
+      ["rep", "Hi Jessica, it's Sam from Acme."],
+    ]);
+  });
+
+  it("a backchannel doesn't cut the rep's sentence, and waits until the rep finishes", () => {
+    const { a, out } = collect();
+    a.push("rep", "I work with urgent care chains on how they get new staff up to", 10);
+    a.push("buyer", "Mm-hm.", 12);
+    a.flush("buyer"); // buyer's short turn closes first…
+    expect(out).toEqual([]); // …but waits for the earlier rep turn
+    a.push("rep", " speed. How long does onboarding take", 13); // late rep transcript
+    a.flush("rep");
+    expect(out).toEqual([
+      ["rep", "I work with urgent care chains on how they get new staff up to speed. How long does onboarding take"],
+      ["buyer", "Mm-hm."],
+    ]);
   });
 
   it("flush(role) only closes that speaker's turn", () => {
@@ -29,6 +47,18 @@ describe("TurnAssembler (GPT-Live transcript deltas → turns)", () => {
     expect(out).toEqual([]);
     a.flush("rep");
     expect(out).toEqual([["rep", "One question"]]);
+  });
+
+  it("cleans broken characters and leftover leading punctuation", () => {
+    expect(cleanTranscript(". I know I'm calling out of the blue� Do you have 30 seconds")).toBe(
+      "I know I'm calling out of the blue Do you have 30 seconds",
+    );
+  });
+
+  it("counts questions without question marks", () => {
+    expect(countQuestions("Hi Jessica, it's Alex from TrainUp. Do you have 30 seconds")).toBe(1);
+    expect(countQuestions("And who does the training? How much time does it take each week")).toBe(2);
+    expect(countQuestions("We help clinics cut ramp time. It works.")).toBe(0);
   });
 
   it("drops empty and whitespace-only turns", () => {

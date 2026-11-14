@@ -19,7 +19,12 @@ const ICE_TIMEOUT_MS = 10000;
 /** Silence after the buyer's last transcript delta that closes their turn */
 const BUYER_TURN_GAP_MS = 1500;
 /** Silence after the rep's last delta that closes their turn even if the buyer stays quiet */
-const REP_TURN_GAP_MS = 3000;
+const REP_TURN_GAP_MS = 2500;
+/**
+ * The buyer answering closes the rep's turn only if the rep has also been quiet this long,
+ * so a backchannel ("Hi.", "Mm-hm") or a late rep transcript doesn't cut a sentence in half.
+ */
+const REP_YIELD_MS = 1200;
 
 export class GptLiveCall {
   private pc: RTCPeerConnection | null = null;
@@ -28,7 +33,8 @@ export class GptLiveCall {
   private audio: HTMLAudioElement | null = null;
   private meterStop: (() => void) | null = null;
   private turns: TurnAssembler;
-  private gapTimer: ReturnType<typeof setTimeout> | null = null;
+  private gapTimers: Partial<Record<Speaker, ReturnType<typeof setTimeout>>> = {};
+  private lastDelta: Record<Speaker, number> = { rep: 0, buyer: 0 };
   private started = false;
   private closed = false;
   private seq = 0;
@@ -126,13 +132,13 @@ export class GptLiveCall {
         this.resolveStart?.();
         break;
       case "session.input_transcript.delta":
-        this.turns.push("rep", String(ev.delta ?? ""));
-        this.armGap("rep", REP_TURN_GAP_MS);
+        this.onDelta("rep", String(ev.delta ?? ""), REP_TURN_GAP_MS);
         break;
-      case "session.output_transcript.delta":
-        this.turns.push("buyer", String(ev.delta ?? ""));
-        this.armGap("buyer", BUYER_TURN_GAP_MS);
+      case "session.output_transcript.delta": {
+        const t = this.onDelta("buyer", String(ev.delta ?? ""), BUYER_TURN_GAP_MS);
+        if (this.turns.isOpen("rep") && t - this.lastDelta.rep >= REP_YIELD_MS) this.closeTurn("rep");
         break;
+      }
       case "session.delegation.created": {
         // We run without a backend: tell the model there is nothing to look up, so it doesn't stall.
         const id = (ev.delegation as { id?: string } | undefined)?.id ?? null;
@@ -155,9 +161,21 @@ export class GptLiveCall {
     }
   }
 
-  private armGap(role: Speaker, ms: number) {
-    if (this.gapTimer) clearTimeout(this.gapTimer);
-    this.gapTimer = setTimeout(() => this.turns.flush(role), ms);
+  /** Adds a delta to the speaker's open turn and restarts that speaker's silence timer. */
+  private onDelta(role: Speaker, delta: string, gapMs: number): number {
+    const t = performance.now();
+    if (!delta) return t;
+    this.turns.push(role, delta, t);
+    this.lastDelta[role] = t;
+    clearTimeout(this.gapTimers[role]);
+    this.gapTimers[role] = setTimeout(() => this.closeTurn(role), gapMs);
+    return t;
+  }
+
+  private closeTurn(role: Speaker) {
+    clearTimeout(this.gapTimers[role]);
+    delete this.gapTimers[role];
+    this.turns.flush(role);
   }
 
   private send(ev: Record<string, unknown>): boolean {
@@ -186,7 +204,8 @@ export class GptLiveCall {
   teardown() {
     this.closed = true;
     if (!this.started) this.rejectStart?.(new Error("Call cancelled."));
-    if (this.gapTimer) clearTimeout(this.gapTimer);
+    Object.values(this.gapTimers).forEach((id) => clearTimeout(id));
+    this.gapTimers = {};
     this.meterStop?.();
     this.meterStop = null;
     this.h.onSpeaking(false);
