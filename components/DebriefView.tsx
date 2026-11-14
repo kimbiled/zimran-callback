@@ -1,0 +1,225 @@
+"use client";
+// [A] Full debrief: score, criteria with quotes, top fixes, interest replay, hidden profile reveal.
+
+import Link from "next/link";
+import { useRef, useState } from "react";
+import type { CallRecord, Criterion, Debrief, Turn } from "@/lib/types";
+import { ScoreChart } from "./ScoreChart";
+import { signed } from "./Meter";
+
+const fmt = (sec: number) => `${Math.floor(Math.max(0, sec) / 60)}:${String(Math.round(Math.max(0, sec)) % 60).padStart(2, "0")}`;
+
+export function DebriefView({ call, debrief }: { call: CallRecord; debrief: Debrief }) {
+  const { persona, turns } = call;
+  const repIdx = turns.map((t, i) => (t.role === "rep" ? i : -1)).filter((i) => i >= 0);
+  const [selected, setSelected] = useState<number | null>(null);
+  const refs = useRef<(HTMLLIElement | null)[]>([]);
+
+  const focusTurn = (turnIndex: number) => {
+    setSelected(turnIndex);
+    refs.current[turnIndex]?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
+  const focusAt = (sec: number) => {
+    if (sec < 0) return;
+    const i = turns.findIndex((t) => t.role === "rep" && Math.abs(Math.round(t.start) - sec) <= 1);
+    if (i >= 0) focusTurn(i);
+  };
+  // Timeline point k (k>=1) belongs to the k-th scored rep turn.
+  const scored = repIdx.filter((i) => typeof turns[i].delta === "number");
+  const selectedPoint = selected !== null ? scored.indexOf(selected) + 1 || null : null;
+
+  const m = debrief.metrics;
+  const tone = debrief.total >= 70 ? "text-good" : debrief.total >= 45 ? "text-acc" : "text-bad";
+  const againHref = persona.generated ? "/call/custom" : `/call/${persona.id}`;
+
+  return (
+    <div className="mx-auto max-w-6xl px-5 py-8">
+      {call.isSample && (
+        <div className="mb-5 rounded-2xl bg-ink px-5 py-3 text-sm text-paper">
+          Sample debrief from a real practice call. <Link href="/#buyers" className="font-semibold text-acc-d underline-offset-4 hover:underline">Make your own call</Link>, it's free.
+        </div>
+      )}
+
+      <section className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
+        <div className="card p-6 rise">
+          <div className="text-sm font-medium text-mute">
+            Debrief · {persona.name}, {persona.title} at {persona.company}
+          </div>
+          <div className="mt-3 flex flex-wrap items-end gap-x-6 gap-y-3">
+            <div className={`display text-7xl tabular-nums ${tone}`}>
+              {debrief.total}
+              <span className="text-2xl text-mute">/100</span>
+            </div>
+            <div className="pb-2">
+              <span className={`chip ${debrief.outcome === "meeting" ? "bg-good/10 text-good" : "bg-bad/10 text-bad"}`}>
+                {debrief.outcome === "meeting" ? "Meeting booked" : "No meeting"}
+              </span>
+              <div className="mt-2 text-sm text-mute">Final buyer interest {signed(debrief.finalScore)}</div>
+            </div>
+          </div>
+          <p className="mt-4 text-[15px] leading-relaxed">{debrief.summary}</p>
+          {debrief.source === "heuristic" && (
+            <p className="mt-3 text-xs text-mute">Scored with the offline rubric because the AI judge was unavailable.</p>
+          )}
+        </div>
+
+        <div className="card p-6 rise">
+          <h2 className="display text-xl">Fix these on your next call</h2>
+          <ol className="mt-4 space-y-3">
+            {debrief.topFixes.map((f, i) => (
+              <li key={i} className="flex gap-3 text-[15px] leading-snug">
+                <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-acc-d text-xs font-bold text-ink">{i + 1}</span>
+                <span>{f}</span>
+              </li>
+            ))}
+          </ol>
+          <div className="mt-6 flex flex-wrap gap-2">
+            <Link href={againHref} className="btn btn-primary">
+              Call {persona.firstName} again
+            </Link>
+            <Link href="/#buyers" className="btn btn-ghost">
+              Another buyer
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      <section className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <Stat label="Call length" value={fmt(m.durationSec)} />
+        <Stat label="You talked" value={`${m.talkRatio}%`} hint="Aim for 40–60%" warn={m.talkRatio > 65} />
+        <Stat label="Questions asked" value={String(m.questions)} warn={m.questions < 3} />
+        <Stat label="Filler words" value={`${m.fillersPer100}`} hint="per 100 words" warn={m.fillersPer100 > 3} />
+        <Stat label="Longest monologue" value={`${m.longestMonologueSec}s`} warn={m.longestMonologueSec > 45} />
+      </section>
+
+      <section className="mt-5">
+        <h2 className="display mb-3 text-2xl">Scorecard</h2>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {debrief.criteria.map((c) => (
+            <CriterionCard key={c.id} c={c} onJump={() => focusAt(c.at)} />
+          ))}
+        </div>
+      </section>
+
+      <section className="mt-5 grid gap-5 lg:grid-cols-[1.2fr_1fr]">
+        <div className="card p-5">
+          <div className="flex items-baseline justify-between">
+            <h2 className="display text-xl">Interest, turn by turn</h2>
+            <span className="text-xs text-mute">Click a point to jump to that moment</span>
+          </div>
+          <div className="mt-3">
+            <ScoreChart
+              points={debrief.scoreTimeline}
+              selected={selectedPoint}
+              onSelect={(k) => {
+                const i = scored[k - 1];
+                if (i !== undefined) focusTurn(i);
+              }}
+              labels={(k) => turns[scored[k - 1]]?.reason ?? ""}
+            />
+          </div>
+          <h3 className="mt-5 text-sm font-semibold uppercase tracking-wider text-mute">What {persona.firstName} was hiding</h3>
+          <ul className="mt-2 space-y-2">
+            {persona.pains.map((p) => {
+              const found = debrief.painsFound.includes(p.id);
+              return (
+                <li key={p.id} className="flex gap-3 text-sm leading-snug">
+                  <span className={`chip h-fit shrink-0 ${found ? "bg-good/10 text-good" : "bg-bad/10 text-bad"}`}>{found ? "Found" : "Missed"}</span>
+                  <span>{p.text}</span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+
+        <div className="card p-5">
+          <h2 className="display text-xl">Replay</h2>
+          <ul className="mt-3 max-h-[560px] space-y-2 overflow-y-auto pr-1">
+            {turns.map((t, i) => (
+              <li
+                key={i}
+                ref={(el) => {
+                  refs.current[i] = el;
+                }}
+              >
+                <TurnRow t={t} active={selected === i} onClick={t.role === "rep" ? () => setSelected(i) : undefined} name={persona.firstName} />
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function Stat({ label, value, hint, warn }: { label: string; value: string; hint?: string; warn?: boolean }) {
+  return (
+    <div className="card p-4">
+      <div className="text-xs font-medium text-mute">{label}</div>
+      <div className={`display mt-1 text-2xl tabular-nums ${warn ? "text-acc" : ""}`}>{value}</div>
+      {hint && <div className="text-[11px] text-mute">{hint}</div>}
+    </div>
+  );
+}
+
+function CriterionCard({ c, onJump }: { c: Criterion; onJump: () => void }) {
+  const pct = (c.score / 20) * 100;
+  return (
+    <div className="card flex flex-col p-5">
+      <div className="flex items-baseline justify-between">
+        <h3 className="font-semibold">{c.title}</h3>
+        <span className="display text-xl tabular-nums">
+          {c.score}
+          <span className="text-sm text-mute">/20</span>
+        </span>
+      </div>
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-line">
+        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: pct >= 70 ? "#15803d" : pct >= 45 ? "#c2410c" : "#b91c1c" }} />
+      </div>
+      {c.quote ? (
+        <button onClick={onJump} className="mt-4 rounded-xl bg-paper p-3 text-left text-sm leading-snug hover:bg-[#efece4]">
+          <span className="mr-2 font-mono text-xs text-mute">{c.at >= 0 ? fmt(c.at) : ""}</span>
+          <span className="italic">"{c.quote}"</span>
+        </button>
+      ) : (
+        <p className="mt-4 rounded-xl bg-paper p-3 text-sm text-mute">You didn't do this on the call.</p>
+      )}
+      {c.better && (
+        <div className="mt-3 text-sm leading-snug">
+          <span className="font-semibold text-acc">Say instead: </span>
+          {c.better}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function TurnRow({ t, active, onClick, name, dark = false }: { t: Turn; active?: boolean; onClick?: () => void; name: string; dark?: boolean }) {
+  const rep = t.role === "rep";
+  const base = dark
+    ? rep
+      ? "bg-white/10 text-paper"
+      : "bg-ink-3/60 text-paper/90"
+    : rep
+      ? "bg-paper"
+      : "bg-white border border-line";
+  return (
+    <div
+      onClick={onClick}
+      className={`rounded-xl p-3 text-sm leading-snug transition ${base} ${active ? "ring-2 ring-acc-d" : ""} ${onClick ? "cursor-pointer" : ""}`}
+    >
+      <div className={`mb-1 flex items-center justify-between text-xs ${dark ? "text-mute-d" : "text-mute"}`}>
+        <span className="font-semibold">
+          {rep ? "You" : name} · {fmt(t.start)}
+        </span>
+        {rep && typeof t.delta === "number" && (
+          <span className={`chip ${t.delta > 0 ? "bg-good/15 text-good" : t.delta < 0 ? "bg-bad/15 text-bad" : dark ? "bg-white/10" : "bg-line"} ${dark && t.delta > 0 ? "!text-good-d" : ""} ${dark && t.delta < 0 ? "!text-bad-d" : ""}`}>
+            {signed(t.delta)}
+          </span>
+        )}
+      </div>
+      <div>{t.text}</div>
+      {rep && t.reason && <div className={`mt-1.5 text-xs ${dark ? "text-mute-d" : "text-mute"}`}>{t.reason}</div>}
+    </div>
+  );
+}
