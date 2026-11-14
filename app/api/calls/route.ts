@@ -5,6 +5,7 @@ import { z } from "zod";
 import { ALLOWED_VOICE_IDS, getPersona, toPublic, VOICES } from "@/lib/personas";
 import { PersonaSchema } from "@/lib/ai/persona-gen";
 import { buildBrief } from "@/lib/voice/brief";
+import { applyRole } from "@/lib/roles";
 import { MAX_CALL_SECONDS, voiceCredentials, voiceProvider } from "@/lib/voice/server";
 import { db } from "@/lib/server/db";
 import { FREE_CALL_LIMIT, sessionId } from "@/lib/server/session";
@@ -19,12 +20,13 @@ const Body = z.object({
     generated: z.boolean().optional(),
   }).optional(),
   mode: z.enum(["voice", "text"]).default("voice"),
+  role: z.enum(["sdr", "ae"]).default("sdr"),
 });
 
 export async function POST(req: Request) {
   const parsed = Body.safeParse(await readJson(req));
   if (!parsed.success) return bad("Invalid request");
-  const { personaId, customPersona, mode } = parsed.data;
+  const { personaId, customPersona, mode, role } = parsed.data;
 
   let persona: Persona | undefined;
   if (customPersona) {
@@ -37,6 +39,7 @@ export async function POST(req: Request) {
     persona = getPersona(personaId);
   }
   if (!persona) return bad("Buyer not found", 404);
+  persona = applyRole(persona, role);
 
   const sid = await sessionId();
   const store = db();

@@ -49,6 +49,7 @@ Callback is for one user: a person aged 25–45 in the US who is about to take t
 
 | Feature | Where |
 |---|---|
+| Two interview types: **SDR** cold call (book a meeting) or **AE** discovery call (qualify, book the demo). Same buyer, different call; the buyer, the judge and the debrief all know which | home page → `/call/[personaId]?role=sdr\|ae` |
 | Live voice call with an AI buyer: interruptions, objections, a hidden situation | `/call/[personaId]` |
 | Text mode with the same buyer and judge, for when the mic doesn't work | toggle before the call |
 | Interest meter from −100 to +100, with the reason for every change | during the call |
@@ -132,7 +133,7 @@ Each has a hidden profile (`lib/personas.ts`): 3 weighted pains with keywords, b
 | Offer Call (soon) | $29 add-on | Salary negotiation with an AI recruiter |
 | Rep Gym | $39 / month | After the hire: 150 minutes a month, new buyers weekly |
 
-Checkout uses Stripe in **test mode** (card `4242 4242 4242 4242`). Without `STRIPE_SECRET_KEY` it runs in demo mode: the plan activates and nothing is charged.
+Checkout uses Stripe in **test mode** (card `4242 4242 4242 4242`, any future date, any CVC), and the pricing page says so. Only `sk_test_`/`rk_test_` keys are accepted: a live key is refused, so a demo can never charge real money. Without `STRIPE_SECRET_KEY` it runs in demo mode: the plan activates and nothing is charged.
 
 ## Tech stack
 
@@ -311,8 +312,8 @@ Two people, two folders, one shared contract (`lib/types.ts`), so merges don't c
 
 | Owner | Area | Files |
 |---|---|---|
-| **A** | Server and UI | `app/**/page.tsx`, `app/layout.tsx`, `components/*`, `lib/server/*`, `lib/plans.ts`, `lib/sample.ts`, `lib/labels.ts`, routes `calls`, `progress`, `checkout`, `health`, `personas` |
-| **B** | AI and voice | `lib/ai/*`, `lib/voice/*`, `lib/personas.ts`, `lib/metrics.ts`, `tests/*`, routes `judge`, `debrief`, `persona-from-job`, `eval`, `voice/session` |
+| **A** · Nursultan | Server and UI | `app/**/page.tsx`, `app/layout.tsx`, `components/*`, `lib/server/*`, `lib/plans.ts`, `lib/sample.ts`, `lib/labels.ts`, routes `calls`, `progress`, `checkout`, `health`, `personas` |
+| **B** · Tlegen | AI and voice | `lib/ai/*`, `lib/voice/*`, `lib/personas.ts`, `lib/metrics.ts`, `tests/*`, routes `judge`, `debrief`, `persona-from-job`, `eval`, `voice/session` |
 | both | Contract | `lib/types.ts` (change only together) |
 
 ```
@@ -347,7 +348,7 @@ scripts/eval.mjs     judge eval runner
 ## Для команды (кратко, по-русски)
 
 - **Прод:** https://zimran-callback.vercel.app · здоровье: `/api/health` · репозиторий публичный, ключи только в `.env.local` и в Vercel.
-- **Роли:** A — сервер и интерфейс, B — AI и голос; общий контракт — `lib/types.ts`, меняем только вдвоём.
+- **Роли:** A (Нурсултан) — сервер и интерфейс, B (Тлеген) — AI и голос; общий контракт — `lib/types.ts`, меняем только вдвоём.
 - **Локально:** `npm install && npm run dev`. Без переменных всё работает (память вместо БД, офлайн-рубрика вместо AI, голос ElevenLabs).
 - **Голос:** с `OPENAI_API_KEY` голосовые звонки идут через GPT-Live, текстовые и аварийные — через ElevenLabs.
 - **Перед сдачей:** починить AI-судью на Vercel (AI Gateway), прогнать `npm run eval` и вписать результат сюда и на слайд «Proof», заменить плейсхолдеры в деке.

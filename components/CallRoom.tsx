@@ -6,22 +6,23 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ConversationProvider } from "@elevenlabs/react";
-import type { CallMode, CallStart, Persona, PersonaPublic } from "@/lib/types";
+import type { CallMode, CallStart, Persona, PersonaPublic, SalesRole } from "@/lib/types";
 import { useBuyerCall } from "@/lib/voice/useBuyerCall";
-import { CUSTOM_PERSONA_KEY, DIFFICULTY_LABEL } from "@/lib/labels";
+import { CUSTOM_PERSONA_KEY, DIFFICULTY_LABEL, ROLE_LABEL } from "@/lib/labels";
+import { applyRole } from "@/lib/roles";
 import { Meter } from "./Meter";
 import { TurnRow } from "./DebriefView";
 import { PhoneIcon } from "./Header";
 
-export default function CallRoom({ persona }: { persona: PersonaPublic | null }) {
+export default function CallRoom({ persona, role }: { persona: PersonaPublic | null; role: SalesRole }) {
   return (
     <ConversationProvider>
-      <Room initial={persona} />
+      <Room initial={persona} role={role} />
     </ConversationProvider>
   );
 }
 
-function Room({ initial }: { initial: PersonaPublic | null }) {
+function Room({ initial, role }: { initial: PersonaPublic | null; role: SalesRole }) {
   const router = useRouter();
   const [persona, setPersona] = useState<PersonaPublic | null>(initial);
   const [custom, setCustom] = useState<Persona | null>(null);
@@ -46,12 +47,13 @@ function Room({ initial }: { initial: PersonaPublic | null }) {
       if (raw) {
         const p = JSON.parse(raw) as Persona;
         setCustom(p);
-        setPersona({ id: p.id, name: p.name, title: p.title, company: p.company, industry: p.industry, product: p.product, difficulty: p.difficulty, goal: p.successStep, generated: true });
+        const r = applyRole(p, role); // only for the brief; the server applies the role itself
+        setPersona({ id: p.id, name: p.name, title: p.title, company: p.company, industry: p.industry, product: p.product, difficulty: p.difficulty, goal: r.successStep, generated: true });
       }
     } catch {
       /* ignore */
     }
-  }, [initial]);
+  }, [initial, role]);
 
   useEffect(() => {
     fetch("/api/progress")
@@ -80,7 +82,7 @@ function Room({ initial }: { initial: PersonaPublic | null }) {
       const res = await fetch("/api/calls", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(custom ? { customPersona: custom, mode: m } : { personaId: persona.id, mode: m }),
+        body: JSON.stringify(custom ? { customPersona: custom, mode: m, role } : { personaId: persona.id, mode: m, role }),
       });
       const data = await res.json();
       if (res.status === 402) {
@@ -140,12 +142,13 @@ function Room({ initial }: { initial: PersonaPublic | null }) {
         <div className="rise">
           <div className="text-sm font-semibold uppercase tracking-wider text-acc">Your call brief</div>
           <h1 className="display mt-2 text-4xl sm:text-5xl">
-            Cold-call {persona.name}
+            {role === "ae" ? `Discovery call with ${persona.name}` : `Cold-call ${persona.name}`}
           </h1>
           <p className="mt-2 text-lg text-mute">
             {persona.title} at {persona.company}
           </p>
           <dl className="mt-6 space-y-4">
+            <Row label="Interview" value={`${ROLE_LABEL[role].title}. ${ROLE_LABEL[role].note}`} />
             <Row label="Company" value={persona.industry} />
             <Row label="You're selling" value={cap(persona.product)} />
             <Row label="Your goal" value={persona.goal} />
@@ -234,7 +237,7 @@ function Room({ initial }: { initial: PersonaPublic | null }) {
           </div>
 
           <div className="rounded-3xl bg-ink-2 p-6">
-            <Meter score={call.score} delta={v?.delta ?? null} reason={v?.reason ?? "Start with your name and the reason for your call."} />
+            <Meter score={call.score} delta={v?.delta ?? null} reason={v?.reason ?? (role === "ae" ? "Thank them, confirm the time and set the agenda." : "Start with your name and the reason for your call.")} />
           </div>
 
           <div className="rounded-3xl bg-ink-2 p-5 text-sm text-mute-d">

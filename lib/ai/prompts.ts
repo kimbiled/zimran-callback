@@ -1,9 +1,11 @@
 // [B] Prompts for the judge, the debrief and the buyer generator.
 
 import type { Persona, Turn } from "../types";
+import { callTypeLine } from "../roles";
 
 export function personaCard(p: Persona): string {
   return [
+    callTypeLine(p.role),
     `Buyer: ${p.name}, ${p.title} at ${p.company} (${p.industry}).`,
     `The rep is selling: ${p.product}.`,
     `Hidden pains (id: description, weight 1-5):\n${p.pains.map((x) => `- ${x.id}: ${x.text} (weight ${x.weight})`).join("\n")}`,

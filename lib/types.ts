@@ -50,7 +50,12 @@ export type Persona = {
   /** the next step that counts as a win */
   successStep: string;
   generated?: boolean;
+  /** Interview the rep is practicing for. Set on the server when a call starts (lib/roles.ts). */
+  role?: SalesRole;
 };
+
+/** sdr: cold call to book a meeting · ae: scheduled discovery call to qualify and advance the deal */
+export type SalesRole = "sdr" | "ae";
 
 export type PersonaPublic = {
   id: string;

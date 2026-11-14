@@ -1,7 +1,7 @@
 // [A] Payments. With STRIPE_SECRET_KEY: Stripe Checkout (test mode).
 // Without a key: demo mode, the plan turns on right away and no money moves.
 import { z } from "zod";
-import { planInfo } from "@/lib/plans";
+import { planInfo, stripeMode } from "@/lib/plans";
 import { db } from "@/lib/server/db";
 import { sessionId } from "@/lib/server/session";
 import { bad, json, readJson } from "@/lib/server/validate";
@@ -17,6 +17,7 @@ export async function POST(req: Request) {
   await db().getOrCreateSession(sid);
   const origin = new URL(req.url).origin;
   const key = process.env.STRIPE_SECRET_KEY;
+  if (stripeMode(key) === "live-blocked") return bad("Checkout runs in Stripe test mode only. Set a sk_test_ key.", 503);
 
   if (!key) {
     await db().setPlan(sid, plan.id);

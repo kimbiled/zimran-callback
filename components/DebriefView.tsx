@@ -6,6 +6,7 @@ import { useRef, useState } from "react";
 import type { CallRecord, Criterion, Debrief, Turn } from "@/lib/types";
 import { ScoreChart } from "./ScoreChart";
 import { signed } from "./Meter";
+import { ROLE_LABEL } from "@/lib/labels";
 
 const fmt = (sec: number) => `${Math.floor(Math.max(0, sec) / 60)}:${String(Math.round(Math.max(0, sec)) % 60).padStart(2, "0")}`;
 
@@ -43,7 +44,7 @@ export function DebriefView({ call, debrief }: { call: CallRecord; debrief: Debr
       <section className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
         <div className="card p-6 rise">
           <div className="text-sm font-medium text-mute">
-            Debrief · {persona.name}, {persona.title} at {persona.company}
+            Debrief · {ROLE_LABEL[persona.role ?? "sdr"].title} · {persona.name}, {persona.title} at {persona.company}
           </div>
           <div className="mt-3 flex flex-wrap items-end gap-x-6 gap-y-3">
             <div className={`display text-7xl tabular-nums ${tone}`}>

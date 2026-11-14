@@ -58,6 +58,15 @@ export const PLANS: PlanInfo[] = [
   },
 ];
 
+/**
+ * test: a Stripe test key (sk_test_/rk_test_) is set · live-blocked: a live key is set, which we refuse
+ * (this is a demo, no real charges) · demo: no key, plans turn on without payment.
+ */
+export function stripeMode(key = process.env.STRIPE_SECRET_KEY): "test" | "live-blocked" | "demo" {
+  if (!key) return "demo";
+  return /^(sk|rk)_test_/.test(key) ? "test" : "live-blocked";
+}
+
 export function planInfo(id: string): PlanInfo | undefined {
   return PLANS.find((p) => p.id === id);
 }

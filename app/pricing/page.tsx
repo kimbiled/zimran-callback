@@ -1,12 +1,16 @@
 import type { Metadata } from "next";
 import { PricingCards } from "@/components/PricingCards";
-import { planInfo } from "@/lib/plans";
+import { planInfo, stripeMode } from "@/lib/plans";
+
+// Reads env at request time, so adding STRIPE_SECRET_KEY switches the banner without a rebuild.
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = { title: "Pricing · Callback" };
 
 export default async function PricingPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams;
   const paid = sp.paid ? planInfo(sp.paid) : undefined;
+  const stripe = stripeMode() === "test";
   return (
     <div className="mx-auto max-w-6xl px-5 py-12">
       {paid && (
@@ -20,6 +24,16 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
       <p className="mt-3 max-w-2xl text-lg text-mute">
         We sell to the rep, never to the company. The first calls are free. Before the interview, a one-time Sprint. After you're hired, Rep Gym keeps you sharp.
       </p>
+      <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-dashed border-acc-d bg-acc-d/5 p-4 text-sm">
+        <span className="chip bg-acc-d/15 font-semibold text-acc">{stripe ? "Stripe test mode" : "Demo mode"}</span>
+        {stripe ? (
+          <span>
+            No real money moves. Pay with test card <strong className="font-mono">4242 4242 4242 4242</strong>, any future expiry date, any CVC and any ZIP.
+          </span>
+        ) : (
+          <span>No card needed: the plan turns on right away and nothing is charged.</span>
+        )}
+      </div>
       <div className="mt-8">
         <PricingCards />
       </div>

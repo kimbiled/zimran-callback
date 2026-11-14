@@ -3,12 +3,12 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import type { Persona, PersonaPublic } from "@/lib/types";
+import type { Persona, PersonaPublic, SalesRole } from "@/lib/types";
 import { CUSTOM_PERSONA_KEY, DIFFICULTY_LABEL } from "@/lib/labels";
 
 type Result = { generated: boolean; public: PersonaPublic; persona: Persona | null; personaId: string | null };
 
-export function JobPersona() {
+export function JobPersona({ role }: { role: SalesRole }) {
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +37,7 @@ export function JobPersona() {
     }
   }
 
-  const href = result ? (result.generated ? "/call/custom" : `/call/${result.personaId}`) : "#";
+  const href = result ? `${result.generated ? "/call/custom" : `/call/${result.personaId}`}?role=${role}` : "#";
 
   return (
     <div className="card flex h-full flex-col p-5">

@@ -12,7 +12,9 @@ export function buildBrief(p: Persona): string {
   return [
     `You are ${p.name}, ${p.title} at ${p.company} (${p.industry}).`,
     p.background,
-    `Someone is cold-calling you to sell ${p.product}. You were not expecting this call.`,
+    p.role === "ae"
+      ? `An account executive is calling for the discovery call you agreed to last week. They sell ${p.product}.`
+      : `Someone is cold-calling you to sell ${p.product}. You were not expecting this call.`,
     `Your real problems (reveal one at a time, and only in answer to a good question):\n${pains}`,
     `Budget and decision: ${p.budget}`,
     `Your objections (use them when they fit):\n${p.objections.map((o) => `- ${o}`).join("\n")}`,

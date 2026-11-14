@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { PERSONAS, toPublic } from "@/lib/personas";
-import { DIFFICULTY_LABEL } from "@/lib/labels";
-import { JobPersona } from "@/components/JobPersona";
+import { applyRole } from "@/lib/roles";
+import { BuyerPicker } from "@/components/BuyerPicker";
 import { PhoneIcon } from "@/components/Header";
 
 const STEPS = [
-  { n: "01", title: "Pick a buyer", text: "Choose a ready-made buyer or paste the job posting. We build the buyer for that company." },
+  { n: "01", title: "Pick a buyer", text: "SDR cold call or AE discovery call. Choose a ready-made buyer or paste the job posting." },
   { n: "02", title: "Take the call", text: "A live voice call with an AI buyer who has hidden pains, a budget and real objections." },
   { n: "03", title: "Watch the meter", text: "Interest climbs when you uncover real pain and drops when you pitch too early." },
   { n: "04", title: "Get the debrief", text: "Scorecard, quotes with timestamps and better lines. Call again and watch your score climb." },
@@ -19,7 +19,11 @@ const DEMO = [
 ];
 
 export default function Home() {
-  const buyers = PERSONAS.map(toPublic);
+  // Public cards only (hidden profiles stay on the server), one set per interview type.
+  const buyers = {
+    sdr: PERSONAS.map((p) => toPublic(applyRole(p, "sdr"))),
+    ae: PERSONAS.map((p) => toPublic(applyRole(p, "ae"))),
+  };
   return (
     <>
       <section className="mx-auto grid max-w-6xl items-center gap-10 px-5 pb-12 pt-12 lg:grid-cols-[1.15fr_1fr] lg:pt-20">
@@ -80,42 +84,9 @@ export default function Home() {
       </section>
 
       <section id="buyers" className="mx-auto max-w-6xl scroll-mt-20 px-5 py-10">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 className="display text-4xl">Who do you want to call?</h2>
-            <p className="mt-2 text-mute">Every buyer has three hidden pains, a budget and objections. Your goal: earn the meeting.</p>
-          </div>
-        </div>
-        <div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {buyers.map((p) => (
-            <Link key={p.id} href={`/call/${p.id}`} className="card group flex flex-col p-5 transition hover:-translate-y-0.5 hover:shadow-lg">
-              <div className="flex items-center justify-between">
-                <span
-                  className={`chip ${p.difficulty === "easy" ? "bg-good/10 text-good" : p.difficulty === "medium" ? "bg-acc-d/15 text-acc" : "bg-bad/10 text-bad"}`}
-                >
-                  {DIFFICULTY_LABEL[p.difficulty]}
-                </span>
-                <span className="text-xs text-mute">{p.industry.split(" · ")[0]}</span>
-              </div>
-              <div className="display mt-4 text-2xl">{p.name}</div>
-              <div className="text-sm text-mute">
-                {p.title} at {p.company}
-              </div>
-              <p className="mt-3 text-sm leading-relaxed">
-                <span className="text-mute">You sell </span>
-                {p.product}.
-              </p>
-              <p className="mt-1 text-sm leading-relaxed">
-                <span className="text-mute">Goal: </span>
-                {p.goal}.
-              </p>
-              <span className="btn btn-primary mt-5 w-full group-hover:bg-[#2a2e40]">
-                <PhoneIcon /> Call {p.name.split(" ")[0]}
-              </span>
-            </Link>
-          ))}
-          <JobPersona />
-        </div>
+        <h2 className="display text-4xl">Who do you want to call?</h2>
+        <p className="mt-2 text-mute">Every buyer has three hidden pains, a budget and objections. Pick your interview, then your buyer.</p>
+        <BuyerPicker buyers={buyers} />
       </section>
 
       <section className="mx-auto max-w-6xl px-5 py-10">
