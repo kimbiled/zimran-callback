@@ -4,7 +4,7 @@ import { generateText, Output } from "ai";
 import { z } from "zod";
 import type { JudgeResponse, Persona, Turn } from "../types";
 import { guardJudge, type RawJudge } from "./guards";
-import { heuristicJudge, matchedPains } from "./heuristics";
+import { heuristicJudge, matchedPains, repeatsAnsweredQuestion } from "./heuristics";
 import { aiEnabled, JUDGE_MODEL, recordAiFailure, recordAiSuccess, resolveModel, withTimeout } from "./model";
 import { JUDGE_INSTRUCTIONS, personaCard, transcript } from "./prompts";
 
@@ -81,12 +81,16 @@ export async function judgeTurn(args: {
     painIds: persona.pains.map((p) => p.id),
     alreadyFound,
   });
+  if (repeatsAnsweredQuestion(turns) && guarded.event !== "monologue") {
+    return { ...guarded, delta: 0, score: prevScore, event: "neutral", reason: "Repeating an answered question adds no new information.", painsUncovered: [], source };
+  }
   // The judge runs before the buyer answers this turn, so a pain the buyer revealed in
   // reply to the previous question would never count live. Credit it now, verified in
   // code by the pain's keywords in the buyer's words (same rule as the offline rubric).
   const lastIndex = turns.lastIndexOf(last);
   const prevBuyer = turns.slice(0, lastIndex).reverse().find((t) => t.role === "buyer");
   const revealed = prevBuyer ? matchedPains(prevBuyer.text, persona) : [];
-  const painsUncovered = [...new Set([...guarded.painsUncovered, ...revealed])].filter((id) => !alreadyFound.includes(id));
+  const evidenced = new Set([...matchedPains(last.text, persona), ...revealed]);
+  const painsUncovered = [...new Set([...guarded.painsUncovered.filter(id => evidenced.has(id)), ...revealed])].filter((id) => !alreadyFound.includes(id));
   return { ...guarded, painsUncovered, source };
 }

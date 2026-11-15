@@ -10,6 +10,20 @@ import { buildDebrief, CRITERIA_ORDER } from "@/lib/ai/debrief";
 afterEach(() => { vi.unstubAllEnvs(); vi.restoreAllMocks(); vi.clearAllMocks(); });
 const input = { persona: getPersona("jessica-hr")!, turns: [{ role: "rep" as const, text: "How do you onboard new staff today?", start: 0, end: 4 }], prevScore: 0, alreadyFound: [] };
 describe("production model source", () => {
+  it("overrides a model reward for repeating an answered question", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-no-network"); vi.stubEnv("AI_DISABLED", "0"); vi.stubEnv("AI_PROVIDER", "openai");
+    const text = "How do you onboard new staff today?";
+    vi.mocked(generateText).mockResolvedValue({ output: { delta: 12, reason: "Open question", evidenceQuote: text, event: "open_question", painsUncovered: ["onboarding"] } } as unknown as Awaited<ReturnType<typeof generateText>>);
+    const result = await judgeTurn({ persona: input.persona, turns: [input.turns[0], { role: "buyer", text: "We spend four weeks onboarding new staff.", start: 5, end: 9 }, { role: "rep", text, start: 10, end: 14 }], prevScore: 12, alreadyFound: [] });
+    expect(result).toMatchObject({ source: "ai", delta: 0, score: 12, painsUncovered: [] });
+  });
+  it("does not invent a known pain when the rep only proposes a demo", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-no-network"); vi.stubEnv("AI_DISABLED", "0"); vi.stubEnv("AI_PROVIDER", "openai");
+    const text = "Can we book a demo tomorrow at 10?";
+    vi.mocked(generateText).mockResolvedValue({ output: { delta: -10, reason: "Asked too early", evidenceQuote: text, event: "next_step", painsUncovered: ["visibility"] } } as unknown as Awaited<ReturnType<typeof generateText>>);
+    const result = await judgeTurn({ persona: getPersona("mike-sales")!, turns: [{ role: "rep", text, start: 0, end: 4 }], prevScore: -20, alreadyFound: [] });
+    expect(result).toMatchObject({ source: "ai", delta: -10, painsUncovered: [] });
+  });
   it("replaces invented integrations and customer-success claims without changing grounded scores", async () => {
     vi.stubEnv("OPENAI_API_KEY", "test-no-network"); vi.stubEnv("AI_DISABLED", "0"); vi.stubEnv("AI_PROVIDER", "openai");
     const rep = input.turns[0];

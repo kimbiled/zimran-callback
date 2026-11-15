@@ -37,6 +37,15 @@ export function proposesNextStep(text: string): boolean {
   });
 }
 
+/** An answered question repeated verbatim earns no new discovery credit. */
+export function repeatsAnsweredQuestion(turns: Turn[]): boolean {
+  const last = turns.findLast(t => t.role === "rep");
+  if (!last || countQuestions(last.text) === 0) return false;
+  const index = turns.lastIndexOf(last);
+  return turns.slice(0, index).some((t, i) => t.role === "rep" && normalize(t.text) === normalize(last.text)
+    && turns.slice(i + 1, index).some(reply => reply.role === "buyer"));
+}
+
 /** Hidden pains whose keywords appear in this text (code-verified evidence). */
 export function matchedPains(text: string, persona: Persona): string[] {
   const t = normalize(text);
@@ -62,7 +71,7 @@ export function heuristicJudge(persona: Persona, turns: Turn[], alreadyFound: st
 
   if (words(last.text).length >= MONOLOGUE_WORDS)
     return { delta: -8, reason: "That turn ran too long. The buyer is tuning out.", evidenceQuote: quote, event: "monologue", painsUncovered: [] };
-  if (isQuestion && turns.slice(0, idx).some((t, i) => t.role === "rep" && normalize(t.text) === normalize(last.text) && turns.slice(i + 1, idx).some(reply => reply.role === "buyer")))
+  if (repeatsAnsweredQuestion(turns))
     return { delta: 0, reason: "Repeating an answered question adds no new information.", evidenceQuote: quote, event: "neutral", painsUncovered: [] };
   if (has(text, PITCH) && !anyPainFound)
     return { delta: -10, reason: "Pitching before learning the buyer's problems.", evidenceQuote: quote, event: "pitch_too_early", painsUncovered: [] };
