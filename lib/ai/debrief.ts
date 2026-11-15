@@ -119,7 +119,8 @@ export async function buildDebrief(args: {
         (signal) => generateText({
           model: resolveModel(modelName),
           instructions: DEBRIEF_INSTRUCTIONS,
-          ...(acceptsTemperature(modelName) ? { temperature: 0.2 } : {}),
+          // Reasoning-style models: no temperature, and low effort so the debrief stays fast.
+          ...(acceptsTemperature(modelName) ? { temperature: 0.2 } : { providerOptions: { openai: { reasoningEffort: "low" } } }),
           abortSignal: signal,
           maxRetries: 0,
           maxOutputTokens: DEBRIEF_MAX_OUTPUT_TOKENS,

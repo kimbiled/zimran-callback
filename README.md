@@ -53,7 +53,7 @@ Use an ignored `.env.local` or Vercel project environment settings. Never commit
 | `GPT_LIVE_MODEL` | `gpt-live-1`; this is the Live API, not the Realtime API. |
 | `AI_PROVIDER` | `auto` prefers the OpenAI project key, otherwise Gateway; `openai` or `gateway` pins the backend. |
 | `AI_GATEWAY_API_KEY` | Optional Gateway credential; Vercel can also supply OIDC in request context. |
-| `JUDGE_MODEL` / `DEBRIEF_MODEL` | Defaults: `openai/gpt-4.1-mini` (judge, the one the eval was run on) / `openai/gpt-6-luna` (debrief, falls back to `DEBRIEF_FALLBACK_MODEL`, default `openai/gpt-4.1`). |
+| `JUDGE_MODEL` / `DEBRIEF_MODEL` | Defaults: `openai/gpt-4.1-mini` (judge, the one the eval was run on) / `openai/gpt-4.1-mini` (debrief, fastest with the most grounded quotes in our benchmark, falls back to `DEBRIEF_FALLBACK_MODEL`, default `openai/gpt-4.1`). |
 | `BUYER_MODEL` | Text actor; default `openai/gpt-4.1-mini`. |
 | `AI_DISABLED` | `1` explicitly forces the offline rubric. |
 | `EVAL_KEY` | Protects live evaluation, production probe and feedback export; send in an Authorization bearer header. |

@@ -2,8 +2,10 @@
 import { createOpenAI } from "@ai-sdk/openai";
 
 export const JUDGE_MODEL = process.env.JUDGE_MODEL || "openai/gpt-4.1-mini";
-// Debrief runs on the fast GPT-6 Luna tier; if it errors, the same request is retried on the fallback.
-export const DEBRIEF_MODEL = process.env.DEBRIEF_MODEL || "openai/gpt-6-luna";
+// Debrief model: gpt-4.1-mini was the fastest (4.5 s median) with the most grounded quotes (14/15)
+// in our benchmark (Nov 2026; gpt-6-luna was 8.6 s even at low effort). If it errors, the same
+// request is retried once on the fallback.
+export const DEBRIEF_MODEL = process.env.DEBRIEF_MODEL || "openai/gpt-4.1-mini";
 export const DEBRIEF_FALLBACK_MODEL = process.env.DEBRIEF_FALLBACK_MODEL || "openai/gpt-4.1";
 
 /** Newer reasoning-style models (gpt-5+, gpt-6, o-series) may reject `temperature`. */
