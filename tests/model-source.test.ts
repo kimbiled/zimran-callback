@@ -21,7 +21,8 @@ describe("production model source", () => {
     vi.stubEnv("OPENAI_API_KEY", "test-no-network"); vi.stubEnv("AI_DISABLED", "0"); vi.stubEnv("AI_PROVIDER", "openai");
     const text = "Can we book a demo tomorrow at 10?";
     vi.mocked(generateText).mockResolvedValue({ output: { delta: -10, reason: "Asked too early", evidenceQuote: text, event: "next_step", painsUncovered: ["visibility"] } } as unknown as Awaited<ReturnType<typeof generateText>>);
-    const result = await judgeTurn({ persona: getPersona("mike-sales")!, turns: [{ role: "rep", text, start: 0, end: 4 }], prevScore: -20, alreadyFound: [] });
+    const persona = getPersona("mike-sales")!;
+    const result = await judgeTurn({ persona, turns: [{ role: "buyer", text: persona.openingLine, start: 0, end: 1 }, { role: "rep", text, start: 2, end: 6 }], prevScore: -20, alreadyFound: [] });
     expect(result).toMatchObject({ source: "ai", delta: -10, painsUncovered: [] });
   });
   it("replaces invented integrations and customer-success claims without changing grounded scores", async () => {

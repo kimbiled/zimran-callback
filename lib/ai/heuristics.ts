@@ -52,6 +52,14 @@ export function matchedPains(text: string, persona: Persona): string[] {
   return persona.pains.filter((p) => p.keywords.some((k) => t.includes(normalize(k)))).map((p) => p.id);
 }
 
+/** Opening greetings are scripted context, not evidence uncovered by the rep. */
+export function revealedBuyerPains(turns: Turn[], persona: Persona): string[] {
+  const repIndex = turns.findLastIndex(t => t.role === "rep");
+  const buyerIndex = turns.findLastIndex((t, i) => i < repIndex && t.role === "buyer");
+  return buyerIndex >= 0 && turns.slice(0, buyerIndex).some(t => t.role === "rep")
+    ? matchedPains(turns[buyerIndex].text, persona) : [];
+}
+
 export function heuristicJudge(persona: Persona, turns: Turn[], alreadyFound: string[]): RawJudge {
   const last = [...turns].reverse().find((t) => t.role === "rep");
   if (!last) return { delta: 0, reason: "No rep turn yet.", evidenceQuote: "", event: "neutral", painsUncovered: [] };
@@ -62,7 +70,7 @@ export function heuristicJudge(persona: Persona, turns: Turn[], alreadyFound: st
   const isOpen = isQuestion && has(text, OPEN_Q);
   const idx = turns.lastIndexOf(last);
   const prevBuyer = turns.slice(0, idx).reverse().find((t) => t.role === "buyer");
-  const buyerPains = prevBuyer ? matchedPains(prevBuyer.text, persona) : [];
+  const buyerPains = revealedBuyerPains(turns, persona);
   const buyerObjected = prevBuyer
     ? persona.objections.some((o) => normalize(prevBuyer.text).includes(normalize(o).split(" ").slice(0, 4).join(" ")))
     : false;
