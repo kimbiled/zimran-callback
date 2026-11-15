@@ -52,11 +52,12 @@ export function matchedPains(text: string, persona: Persona): string[] {
   return persona.pains.filter((p) => p.keywords.some((k) => t.includes(normalize(k)))).map((p) => p.id);
 }
 
-/** Opening greetings are scripted context, not evidence uncovered by the rep. */
+/** Only replies to discovery questions count automatically; greetings and close objections do not. */
 export function revealedBuyerPains(turns: Turn[], persona: Persona): string[] {
   const repIndex = turns.findLastIndex(t => t.role === "rep");
   const buyerIndex = turns.findLastIndex((t, i) => i < repIndex && t.role === "buyer");
-  return buyerIndex >= 0 && turns.slice(0, buyerIndex).some(t => t.role === "rep")
+  const question = turns.slice(0, buyerIndex).findLast(t => t.role === "rep");
+  return buyerIndex >= 0 && question && countQuestions(question.text) > 0 && !proposesNextStep(question.text)
     ? matchedPains(turns[buyerIndex].text, persona) : [];
 }
 
