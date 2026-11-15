@@ -8,10 +8,10 @@ import type { CallRecord, Turn } from "@/lib/types";
 const fixture = vi.hoisted(() => {
   const databaseUrl = process.env.DATABASE_URL;
   process.env.DATABASE_URL = "";
-  return { sid: "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa", call: null as CallRecord | null, databaseUrl };
+  return { sid: "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa", call: null as CallRecord | null, databaseUrl, refunds: 0 };
 });
 vi.mock("@/lib/server/session", () => ({ sessionId: async () => fixture.sid }));
-vi.mock("@/lib/server/db", () => ({ db: () => ({ getCall: async () => fixture.call }) }));
+vi.mock("@/lib/server/db", () => ({ db: () => ({ getCall: async () => fixture.call, settleVoiceStartup: async () => { fixture.refunds++; return true; } }) }));
 import { POST } from "@/app/api/voice/session/route";
 
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
@@ -107,6 +107,7 @@ describe("GPT-Live server configuration", () => {
 
 const request = (id: string, sdp = "v=0\r\noffer") => new Request("http://localhost/api/voice/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ callId: id, sdp }) });
 beforeEach(() => {
+  fixture.refunds = 0;
   fixture.call = { id: crypto.randomUUID(), sessionId: fixture.sid, personaId: PERSONAS[0].id, persona: PERSONAS[0], mode: "voice", status: "live", isSample: false, startedAt: new Date().toISOString(), endedAt: null, finalScore: null, total: null, turns: [], debrief: null };
 });
 describe("voice session ownership and durable claim", () => {
@@ -137,6 +138,7 @@ describe("voice session ownership and durable claim", () => {
     expect((await POST(request(fixture.call!.id))).status).toBe(502);
     expect((await POST(request(fixture.call!.id))).status).toBe(409);
     expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(fixture.refunds).toBe(1);
     expect(JSON.stringify(logger.mock.calls)).not.toMatch(/private body|never-log-this-key/);
   });
 });

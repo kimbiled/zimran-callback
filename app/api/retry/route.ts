@@ -9,6 +9,7 @@ import { bad, json, readJson } from "@/lib/server/validate";
 import { judgeTurn } from "@/lib/ai/judge";
 import { initialInterest } from "@/lib/ai/interest";
 import { SAMPLE_CALL_ID, sampleCall } from "@/lib/sample";
+import { finalEvidence, judgments } from "@/lib/ai/call-state";
 
 const Body = z.object({
   callId: z.union([z.uuid(), z.literal(SAMPLE_CALL_ID)]),
@@ -45,7 +46,10 @@ export async function POST(req: Request) {
     ...call.turns.slice(0, turnIndex).map(({ role, text, start, end }) => ({ role, text, start, end })),
     { role: "rep", text, start: original.start, end: original.end },
   ];
-  const verdict = await judgeTurn({ persona: call.persona, turns: context, prevScore, alreadyFound: [] });
+  const prefix = context.slice(0, -1);
+  const entries = callId === SAMPLE_CALL_ID ? [] : await judgments(callId);
+  const alreadyFound = finalEvidence(call, prefix, entries).painsFound;
+  const verdict = await judgeTurn({ persona: call.persona, turns: context, prevScore, alreadyFound });
   const body: RetryResponse = {
     delta: verdict.delta,
     score: verdict.score,

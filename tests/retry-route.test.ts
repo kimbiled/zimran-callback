@@ -20,6 +20,7 @@ vi.mock("@/lib/server/db", () => ({
 import { POST as retry } from "@/app/api/retry/route";
 import { getPersona } from "@/lib/personas";
 import { sampleCall } from "@/lib/sample";
+import { saveJudgment } from "@/lib/ai/call-state";
 
 const request = (body: unknown, ip = "10.0.0.1") =>
   new Request("http://localhost/api/retry", { method: "POST", headers: { "Content-Type": "application/json", "x-forwarded-for": ip }, body: JSON.stringify(body) });
@@ -43,6 +44,11 @@ beforeEach(() => {
 });
 
 describe("POST /api/retry", () => {
+  it("does not reward rediscovering a pain already found before the retried line", async () => {
+    await saveJudgment(fixture.call!.id, 0, turns[1].text, { delta: 10, score: 10, reason: "Found onboarding", evidenceQuote: turns[1].text, event: "pain_uncovered", painsUncovered: ["onboarding"], source: "ai" });
+    const response = await retry(request({ callId: fixture.call!.id, turnIndex: 3, text: "How do you onboard new staff today?" }));
+    expect((await response.json()).delta).toBe(7);
+  });
   it("re-judges the owner's line in context and returns old and new deltas without saving anything", async () => {
     const before = structuredClone(fixture.call);
     const res = await retry(request({ callId: fixture.call!.id, turnIndex: 1, text: "Hi Jessica, quick question: how long does onboarding a new hire take today?" }));

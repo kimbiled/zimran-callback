@@ -107,7 +107,7 @@ for (const fixture of fixtures) {
     assert.deepEqual(cached, debrief, 'Debrief is not idempotent');
     const progress = await request('/api/progress');
     row.callsLeft = progress.callsLeft;
-    if (call.callsLeft !== null) assert.equal(progress.callsLeft, call.callsLeft - 1, 'Quota charged more than once');
+    if (call.callsLeft !== null) assert.equal(progress.callsLeft, call.callsLeft, 'Completion charged the reserved call again');
     row.turns = turns;
     console.log(`LIVE CALL PASS ${fixture.id}: total=${debrief.total}, outcome=${debrief.outcome}`);
   } catch (error) { row.errors.push(error.message); report.failures.push({ id: fixture.id, error: error.message }); console.log(`LIVE CALL FAIL ${fixture.id}: ${error.message}`); }

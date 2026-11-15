@@ -16,6 +16,8 @@ interface Store {
    * Counting at start (not at debrief) stops parallel calls from all passing the limit check.
    */
   reserveCall(id: string, limit: number): Promise<Reservation>;
+  /** Confirm startup, or close an unconnected voice call and refund its reservation once. */
+  settleVoiceStartup(id: string, sessionId: string, connected: boolean): Promise<boolean>;
   setPlan(id: string, plan: Plan): Promise<void>;
   createCall(c: { id: string; sessionId: string; persona: Persona; mode: CallMode; isSample?: boolean }): Promise<void>;
   getCall(id: string): Promise<CallRecord | null>;
@@ -79,6 +81,7 @@ const SCHEMA = [
     debrief jsonb
   )`,
   `create index if not exists calls_session_idx on calls(session_id, started_at)`,
+  `alter table calls add column if not exists voice_started boolean not null default false`,
 ];
 
 type Row = Record<string, unknown>;
@@ -140,6 +143,26 @@ function neonStore(url: string): Store {
       if (rows[0]) return { ok: true, callsUsed: Number(rows[0].calls_used), plan: rows[0].plan as Plan };
       const current = (await sql`select calls_used, plan from sessions where id = ${id}::uuid`) as Row[];
       return { ok: false, callsUsed: Number(current[0]?.calls_used ?? limit), plan: (current[0]?.plan as Plan) ?? "free" };
+    },
+    async settleVoiceStartup(id, sessionId, connected) {
+      await init();
+      if (connected) {
+        const rows = await sql`update calls set voice_started = true
+          where id = ${id}::uuid and session_id = ${sessionId}::uuid and mode = 'voice' and status = 'live'
+          returning id`;
+        return rows.length > 0;
+      }
+      // The call row lock serializes confirmation/refund; only the winning cancellation decrements usage.
+      const rows = await sql`with cancelled as (
+        update calls set status = 'cancelled', ended_at = now()
+        where id = ${id}::uuid and session_id = ${sessionId}::uuid and mode = 'voice'
+          and status = 'live' and voice_started = false
+        returning session_id
+      ), refunded as (
+        update sessions set calls_used = greatest(0, calls_used - 1)
+        where id in (select session_id from cancelled) returning id
+      ) select id from refunded`;
+      return rows.length > 0;
     },
     async setPlan(id, plan) {
       await init();
@@ -222,6 +245,7 @@ function memoryStore(): Store {
   const g = globalThis as unknown as { __cbMem?: { sessions: Map<string, SessionRow>; calls: Map<string, CallRecord> } };
   g.__cbMem ??= { sessions: new Map(), calls: new Map() };
   const m = g.__cbMem;
+  const started = (globalThis as unknown as { __cbVoiceStarted?: Set<string> }).__cbVoiceStarted ??= new Set<string>();
   return {
     kind: "memory",
     async getOrCreateSession(id) {
@@ -235,6 +259,16 @@ function memoryStore(): Store {
       if (s.plan === "free" && s.callsUsed >= limit) return { ok: false, callsUsed: s.callsUsed, plan: s.plan };
       s.callsUsed += 1;
       return { ok: true, callsUsed: s.callsUsed, plan: s.plan };
+    },
+    async settleVoiceStartup(id, sessionId, connected) {
+      const call = m.calls.get(id);
+      if (!call || call.sessionId !== sessionId || call.mode !== "voice" || call.status !== "live") return false;
+      if (connected) { started.add(id); return true; }
+      if (started.has(id)) return false;
+      call.status = "cancelled"; call.endedAt = new Date().toISOString();
+      const session = m.sessions.get(sessionId);
+      if (session) session.callsUsed = Math.max(0, session.callsUsed - 1);
+      return true;
     },
     async setPlan(id, plan) {
       const s = m.sessions.get(id);

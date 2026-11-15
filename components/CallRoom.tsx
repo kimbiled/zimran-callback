@@ -43,6 +43,7 @@ function Room({ initial, role }: { initial: PersonaPublic | null; role: SalesRol
 
   const call = useBuyerCall({
     onDone: (d) => router.push(`/debrief/${d.callId}`),
+    onCallsLeft: setCallsLeft,
   });
 
   // Coach whisper. Hint requests run beside the judge and the buyer; nothing in the call loop awaits them.

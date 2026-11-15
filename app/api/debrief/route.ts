@@ -22,6 +22,7 @@ export async function POST(req: Request) {
   const call = await timer.time("db", () => ownedCall(callId));
   if (!call) return bad("Call not found", 404);
   if (call.status === "done" && call.debrief) return timer.apply(json(call.debrief));
+  if (call.status !== "live") return bad("Call already ended", 409);
 
   const entries = await timer.time("db", () => judgments(callId));
   if (!sameRepPrefix(entries, turns)) return bad("Previously judged turns changed", 409);

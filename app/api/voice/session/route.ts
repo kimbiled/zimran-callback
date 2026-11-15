@@ -36,6 +36,7 @@ export async function POST(req: Request) {
     return json({ sdp: answer.sdp });
   } catch (e) {
     await recordVoiceSession(callId, null);
+    await db().settleVoiceStartup(callId, sid, false);
     console.error("GPT-Live session failed", e instanceof LiveSessionError ? { status: e.status, code: e.code } : { code: "setup" });
     return bad("The voice service is unavailable", 502);
   }

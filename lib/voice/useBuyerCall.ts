@@ -16,7 +16,16 @@ function mark(name: string) {
 }
 
 export type CallPhase = "idle" | "connecting" | "live" | "finishing" | "done" | "error";
-export function useBuyerCall(opts: { onDone: (debrief: Debrief) => void }) {
+async function reportStartup(callId: string, state: "connected" | "failed") {
+  const response = await fetch("/api/voice/startup", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ callId, state }), keepalive: true, signal: AbortSignal.timeout(10_000),
+  });
+  if (!response.ok) throw new Error("Could not confirm voice startup. Please try again.");
+  return await response.json() as { callsLeft: number | null };
+}
+
+export function useBuyerCall(opts: { onDone: (debrief: Debrief) => void; onCallsLeft?: (left: number | null) => void }) {
   const [phase, setPhase] = useState<CallPhase>("idle");
   const [turns, setTurns] = useState<Turn[]>([]);
   const [score, setScore] = useState(0);
@@ -48,6 +57,18 @@ export function useBuyerCall(opts: { onDone: (debrief: Debrief) => void }) {
   const routerRef = useRef(router);
   routerRef.current = router;
   const endClickRef = useRef<number | null>(null);
+  const pendingVoiceRef = useRef<string | null>(null);
+  const quotaRef = useRef(opts.onCallsLeft);
+  quotaRef.current = opts.onCallsLeft;
+  const cancelStartup = async (callId: string, updateQuota = false) => {
+    if (pendingVoiceRef.current === callId) pendingVoiceRef.current = null;
+    try {
+      const result = await reportStartup(callId, "failed");
+      if (updateQuota) quotaRef.current?.(result.callsLeft);
+    } catch { /* Retry is safe: the server closes/refunds each call only once. */
+      try { const result = await reportStartup(callId, "failed"); if (updateQuota) quotaRef.current?.(result.callsLeft); } catch { /* Offline: preserve the existing connection error. */ }
+    }
+  };
   const now = () => Math.min(300, Math.max(0, (performance.now() - t0.current) / 1000));
 
   const judge = useCallback((index: number) => {
@@ -124,6 +145,7 @@ export function useBuyerCall(opts: { onDone: (debrief: Debrief) => void }) {
   }, []);
 
   const start = useCallback(async (call: CallStart, mode: CallMode) => {
+    if (pendingVoiceRef.current) await cancelStartup(pendingVoiceRef.current);
     const run = ++runRef.current;
     finishedRef.current = true; liveRef.current = false; gptRef.current?.teardown(); gptRef.current = null;
     abortRef.current.abort();
@@ -147,11 +169,17 @@ export function useBuyerCall(opts: { onDone: (debrief: Debrief) => void }) {
     if (mode === "text") {
       connected(); addTurn("buyer", call.voice.openingLine); return;
     }
+    pendingVoiceRef.current = call.callId;
+    const buffered: Turn[] = [];
+    let closed = false;
     const gpt = new GptLiveCall({
-      onStarted: connected,
-      onTurn: turn => { if (run === runRef.current && liveRef.current && !finishedRef.current) appendTurn(turn); },
+      onTurn: turn => {
+        if (run !== runRef.current || finishedRef.current) return;
+        if (liveRef.current) appendTurn(turn); else buffered.push(turn);
+      },
       onSpeaking: speaking => { if (run === runRef.current) setIsSpeaking(speaking); },
       onClosed: (reason, usageConfirmed) => {
+        closed = true;
         if (run !== runRef.current || finishedRef.current) return;
         if (!usageConfirmed && reason !== "close_requested") setError("Voice disconnected. Your transcript is kept for the debrief.");
         void finish();
@@ -160,7 +188,16 @@ export function useBuyerCall(opts: { onDone: (debrief: Debrief) => void }) {
     gptRef.current = gpt;
     try {
       await gpt.start(call.callId, call.voice.maxSeconds);
+      if (run !== runRef.current || finishedRef.current) return;
+      await reportStartup(call.callId, "connected");
+      if (pendingVoiceRef.current === call.callId) pendingVoiceRef.current = null;
+      if (run !== runRef.current || finishedRef.current) return;
+      connected();
+      buffered.forEach(appendTurn);
+      if (closed) void finish();
     } catch (cause) {
+      gpt.teardown();
+      await cancelStartup(call.callId, run === runRef.current);
       if (run === runRef.current && !finishedRef.current) {
         finishedRef.current = true; liveRef.current = false;
         setError(cause instanceof Error ? cause.message : "Voice is unavailable. Switch to text mode."); setPhase("error");
@@ -171,7 +208,12 @@ export function useBuyerCall(opts: { onDone: (debrief: Debrief) => void }) {
   const end = useCallback(() => {
     const gpt = gptRef.current;
     const run = runRef.current;
-    if (!liveRef.current) { finishedRef.current = true; void gpt?.end(); setPhase("idle"); return; }
+    if (!liveRef.current) {
+      finishedRef.current = true; void gpt?.end();
+      const pending = pendingVoiceRef.current;
+      if (pending) void cancelStartup(pending, true);
+      setPhase("idle"); return;
+    }
     endClickRef.current ??= mark("cb:end-click");
     setPhase("finishing");
     if (modeRef.current === "voice" && gpt) void gpt.end().then(() => { if (run === runRef.current) return finish(); });
@@ -206,6 +248,7 @@ export function useBuyerCall(opts: { onDone: (debrief: Debrief) => void }) {
     return () => clearInterval(id);
   }, [phase, end]);
   useEffect(() => () => {
+    if (pendingVoiceRef.current) void cancelStartup(pendingVoiceRef.current);
     ++runRef.current; finishedRef.current = true; liveRef.current = false; abortRef.current.abort(); void gptRef.current?.end("page_left");
   }, []);
   return { phase, turns, score, timeline, verdict, painsFound, elapsed, error, provider, isSpeaking,

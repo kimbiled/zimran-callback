@@ -156,7 +156,7 @@ export type CallRecord = {
   personaId: string;
   persona: Persona;
   mode: CallMode;
-  status: "live" | "done";
+  status: "live" | "done" | "cancelled";
   isSample: boolean;
   startedAt: string;
   endedAt: string | null;
